@@ -122,8 +122,8 @@ function reducer(state: GameState, action: Action): GameState {
       if (!b) return p
 
       let angle = p.angle
-      if (keys.has(b.left)) angle -= TURN_SPEED * dt
-      if (keys.has(b.right)) angle += TURN_SPEED * dt
+      if (keys.has(b.left)) angle += TURN_SPEED * dt
+      if (keys.has(b.right)) angle -= TURN_SPEED * dt
 
       let x = p.x
       let z = p.z
