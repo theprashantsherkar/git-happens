@@ -7,9 +7,9 @@ import { PlayerMesh } from './PlayerMesh'
 import { BulletMesh } from './BulletMesh'
 import { ObstacleMesh } from './ObstacleMesh'
 import { CameraRig } from './CameraRig'
-import { useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useThree, useFrame } from '@react-three/fiber'
+import { useMemo, useRef } from 'react'
 
 // ─── Flag mesh in world ───────────────────────────────────────────────────────
 function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: number | null }) {
@@ -50,6 +50,86 @@ function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: numb
 
 type Props = { state: GameState }
 
+
+function SkyAndClouds() {
+  const cloudGroup = useRef<THREE.Group>(null)
+
+  // Strong blue sky gradient
+  const skyTexture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1024
+    canvas.height = 1024
+    const ctx = canvas.getContext('2d')!
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 1024)
+
+    gradient.addColorStop(0, '#0f4fff')   // deep sky blue (top)
+    gradient.addColorStop(0.5, '#1e90ff') // bright mid blue
+    gradient.addColorStop(1, '#87ceeb')   // light horizon blue
+
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 1024, 1024)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.needsUpdate = true
+    return texture
+  }, [])
+
+  const clouds = useMemo(() => {
+    const arr: { x: number; y: number; z: number; scale: number }[] = []
+    for (let i = 0; i < 20; i++) {
+      arr.push({
+        x: (Math.random() - 0.5) * 120,
+        y: 30 + Math.random() * 20,
+        z: (Math.random() - 0.5) * 120,
+        scale: 3 + Math.random() * 2,
+      })
+    }
+    return arr
+  }, [])
+
+  useFrame((_, delta) => {
+    if (cloudGroup.current) {
+      cloudGroup.current.position.x += delta * 0.3
+    }
+  })
+
+  return (
+    <>
+      {/* Sky dome */}
+      <mesh>
+        <sphereGeometry args={[300, 64, 64]} />
+        <meshBasicMaterial
+          map={skyTexture}
+          side={THREE.BackSide}
+        />
+      </mesh>
+
+      {/* Soft clouds */}
+      <group ref={cloudGroup}>
+        {clouds.map((c, i) => (
+          <group key={i} position={[c.x, c.y, c.z]} scale={c.scale}>
+            <mesh>
+              <sphereGeometry args={[1.6, 16, 16]} />
+              <meshLambertMaterial color="#ffffff" transparent opacity={0.85} />
+            </mesh>
+            <mesh position={[1.4, 0.3, 0]}>
+              <sphereGeometry args={[1.2, 16, 16]} />
+              <meshLambertMaterial color="#f0f6ff" transparent opacity={0.8} />
+            </mesh>
+            <mesh position={[-1.3, 0.2, 0]}>
+              <sphereGeometry args={[1.1, 16, 16]} />
+              <meshLambertMaterial color="#e6f2ff" transparent opacity={0.8} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    </>
+  )
+}
+
+export default SkyAndClouds
+
 export function GameScene({ state }: Props) {
   return (
     <Canvas
@@ -59,6 +139,7 @@ export function GameScene({ state }: Props) {
       gl={{ antialias: true }}
     >
       <SceneLighting />
+      <SkyAndClouds />
       <Track />
 
       {/* Flag in world */}

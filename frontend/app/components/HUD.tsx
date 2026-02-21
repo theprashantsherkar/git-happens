@@ -287,28 +287,6 @@ export function HUD({ players, elapsed, sessionDuration }: Props) {
         })}
       </div>
 
-      {/* ── Controls — bottom left ── */}
-      {/* <div style={{
-        position: 'absolute', bottom: 18, left: 18, zIndex: 10,
-        display: 'flex', flexDirection: 'column', gap: 4,
-      }}>
-        {players.map((p, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            background: 'rgba(0,0,0,0.55)',
-            border: `1px solid ${p.role === 'carrier' && p.alive ? p.color + '88' : '#ffffff11'}`,
-            borderRadius: 5, padding: '3px 10px',
-            fontFamily: '"Courier New", monospace',
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-            <span style={{ color: p.color, fontSize: 10, width: 38 }}>{p.name}</span>
-            <span style={{ color: '#FFFFFF44', fontSize: 9 }}>{CTRL[i]}</span>
-            {p.role === 'carrier' && p.alive && <span style={{ fontSize: 9 }}>🚩</span>}
-            {!p.alive && <span style={{ fontSize: 9, color: '#FF4444' }}>💀</span>}
-          </div>
-        ))}
-      </div> */}
-
       {/* ── Carrier banner — bottom centre ── */}
       {carrier && (
         <div style={{

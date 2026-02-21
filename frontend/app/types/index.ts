@@ -24,7 +24,7 @@ export type Obstacle = {
   id: number
   x: number
   z: number
-  type: 'tree' | 'rock' | 'log' | 'barrel'
+  type: 'tree' | 'rock' | 'log' | 'barrel' | 'pothole' | 'animal'
 }
 
 export type Bullet = {

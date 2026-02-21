@@ -50,14 +50,29 @@ function clamp(v: number, lo: number, hi: number) {
 
 function spawnObstacles(): Obstacle[] {
   const obs: Obstacle[] = []
-  const types: Obstacle['type'][] = ['tree', 'rock', 'log', 'barrel']
-  for (let i = 0; i < 40; i++) {
-    const seed = i * 7919
-    const x = (seed * 1031) % 140 - 70
-    const z = (seed * 2053) % 140 - 70
+  const types: Obstacle['type'][] = [
+    'tree','tree','tree','tree',
+    'rock','rock',
+    'log',
+    'barrel',
+    'pothole',
+    'animal'
+  ]
+
+  for (let i = 0; i < 120; i++) {
+    const x = Math.random() * 150 - 75
+    const z = Math.random() * 150 - 75
+
     if (Math.abs(x) < 8 && Math.abs(z) < 8) continue
-    obs.push({ id: i, x, z, type: types[i % 4] })
+
+    obs.push({
+      id: i,
+      x,
+      z,
+      type: types[Math.floor(Math.random() * types.length)]
+    })
   }
+
   return obs
 }
 
