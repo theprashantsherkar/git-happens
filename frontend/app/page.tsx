@@ -1,8 +1,5 @@
-'use client'
-
-import dynamic from 'next/dynamic';
-const LandingPage = dynamic(() => import('./LandingPage'), { ssr: false });
+import { redirect } from 'next/navigation'
 
 export default function Home() {
-  return <LandingPage />;
+  redirect('/game')
 }

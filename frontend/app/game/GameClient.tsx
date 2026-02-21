@@ -1,12 +1,18 @@
-'use client';
-import dynamic from 'next/dynamic';
+'use client'
 
-const Game = dynamic(() => import('../Game'), { ssr: false });
+import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 
-import { useSearchParams } from 'next/navigation';
+const Game = dynamic(() => import('./game'), {
+  ssr: false,
+})
 
 export default function GamePage() {
-  const searchParams = useSearchParams();
-  const session = searchParams.get('session') || '2';
-  return <Game sessionDuration={parseInt(session, 10)} />;
+  const searchParams = useSearchParams()
+  const session = searchParams.get('session') ?? '2'
+
+  const sessionDuration = Number(session)
+  const safeDuration = Number.isNaN(sessionDuration) ? 2 : sessionDuration
+
+  return <Game sessionDuration={safeDuration} />
 }
