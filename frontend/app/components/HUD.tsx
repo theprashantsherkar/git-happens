@@ -1,8 +1,6 @@
 'use client'
 import { useRef, useEffect, useState } from 'react'
-import * as THREE from 'three'
 import { Player } from '../types'
-import { PATH_SPLINE } from '../utils/path'
 import { PLAYER_COLORS } from '../constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,48 +13,40 @@ type Props = {
 
 type ChatMsg = { id: number; name: string; color: string; text: string }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMs(ms: number) {
   const s = Math.floor(ms / 1000)
   const m = Math.floor(s / 60)
   return `${m}:${(s % 60).toString().padStart(2, '0')}`
 }
 
-function fmtCountdown(sec: number) {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+function fmtCountdown(ms: number) {
+  const s = Math.floor(ms / 1000)
+  const m = Math.floor(s / 60)
+  return `${m}:${(s % 60).toString().padStart(2, '0')}`
 }
 
 const CTRL = [
-  'A/D · W · Space',
-  'J/L · I · U',
-  '←/→ · ↑ · /',
-  '4/6 · 8 · 5',
+  '↑ move · ←/→ turn · Space shoot',
+  'W move · A/D turn · F shoot',
+  'I move · J/L turn · U shoot',
+  '8 move · 4/6 turn · 0 shoot',
 ]
 
-// ─── Minimap canvas ──────────────────────────────────────────────────────────
-const MM = 180 // px
+// ─── Minimap ──────────────────────────────────────────────────────────────────
+const MM = 180        // minimap px size
+const WORLD = 80      // world half-extent (-80..+80)
 
 function Minimap({ players }: { players: Player[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Pre-compute the path points projected onto the 2D minimap once
-  const pathPoints = useRef<{ x: number; y: number }[]>([])
-  useEffect(() => {
-    const pts = PATH_SPLINE.getPoints(120)
-    // Determine bounding box of spline
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
-    pts.forEach(p => {
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
-      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z)
-    })
-    const pad = 4
-    pathPoints.current = pts.map(p => ({
-      x: ((p.x - minX + pad) / (maxX - minX + pad * 2)) * MM,
-      y: ((p.z - minZ + pad) / (maxZ - minZ + pad * 2)) * MM,
-    }))
-  }, [])
+  // Convert world x/z to minimap pixel coords
+  function toMM(wx: number, wz: number) {
+    return {
+      x: ((wx + WORLD) / (WORLD * 2)) * MM,
+      y: ((wz + WORLD) / (WORLD * 2)) * MM,
+    }
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -69,40 +59,33 @@ function Minimap({ players }: { players: Player[] }) {
     ctx.roundRect(0, 0, MM, MM, 8)
     ctx.fill()
 
-    // Path line
-    const pts = pathPoints.current
-    if (pts.length > 1) {
-      ctx.strokeStyle = '#5a4a30'
-      ctx.lineWidth = 5
-      ctx.beginPath()
-      ctx.moveTo(pts[0].x, pts[0].y)
-      pts.forEach(p => ctx.lineTo(p.x, p.y))
-      ctx.closePath()
-      ctx.stroke()
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.lineWidth = 0.5
+    for (let i = 0; i <= 4; i++) {
+      const pos = (i / 4) * MM
+      ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, MM); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(MM, pos); ctx.stroke()
     }
 
-    // Compute same bounding box for player dot projection
-    const rawPts = PATH_SPLINE.getPoints(120)
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
-    rawPts.forEach(p => {
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
-      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z)
-    })
-    const pad = 4
-    const toMM = (wx: number, wz: number) => ({
-      x: ((wx - minX + pad) / (maxX - minX + pad * 2)) * MM,
-      y: ((wz - minZ + pad) / (maxZ - minZ + pad * 2)) * MM,
-    })
+    // Flag spawn marker (center)
+    const center = toMM(0, 0)
+    ctx.beginPath()
+    ctx.arc(center.x, center.y, 5, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255,215,0,0.4)'
+    ctx.fill()
+    ctx.strokeStyle = '#FFD700'
+    ctx.lineWidth = 1
+    ctx.stroke()
 
     // Player dots
     players.forEach(p => {
-      const wp = PATH_SPLINE.getPoint(((p.pathT % 1) + 1) % 1)
-      const { x, y } = toMM(wp.x, wp.z)
-
+      const { x, y } = toMM(p.x, p.z)
       const isCarrier = p.role === 'carrier' && p.alive
+
       ctx.beginPath()
       ctx.arc(x, y, isCarrier ? 6 : 4, 0, Math.PI * 2)
-      ctx.fillStyle = p.alive ? p.color : p.color + '55'
+      ctx.fillStyle = p.alive ? p.color : p.color + '44'
       ctx.fill()
 
       if (isCarrier) {
@@ -114,10 +97,23 @@ function Minimap({ players }: { players: Player[] }) {
         ctx.fillRect(x + 6, y - 10, 2, 10)
         ctx.fillRect(x + 7, y - 10, 8, 5)
       }
+
+      // Direction tick
+      if (p.alive) {
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(
+          x + Math.sin(p.angle) * (isCarrier ? 9 : 7),
+          y + Math.cos(p.angle) * (isCarrier ? 9 : 7)
+        )
+        ctx.strokeStyle = p.color
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      }
     })
 
     // Border
-    ctx.strokeStyle = 'rgba(255,215,0,0.4)'
+    ctx.strokeStyle = 'rgba(255,215,0,0.35)'
     ctx.lineWidth = 1.5
     ctx.roundRect(0, 0, MM, MM, 8)
     ctx.stroke()
@@ -147,7 +143,7 @@ const SEED_MSGS: ChatMsg[] = [
 
 function ChatPanel({ players }: { players: Player[] }) {
   const [msgs, setMsgs] = useState<ChatMsg[]>(SEED_MSGS)
-  const [input, setInput]   = useState('')
+  const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -157,19 +153,14 @@ function ChatPanel({ players }: { players: Player[] }) {
   const send = () => {
     const text = input.trim()
     if (!text) return
-    setMsgs(m => [...m, {
-      id: _chatId++,
-      name: 'Blue',
-      color: PLAYER_COLORS[0],
-      text,
-    }])
+    setMsgs(m => [...m, { id: _chatId++, name: 'Blue', color: PLAYER_COLORS[0], text }])
     setInput('')
   }
 
   return (
     <div style={{
       position: 'absolute', top: 18, left: 18, zIndex: 10,
-      width: 210,
+      width: 220,
       background: 'rgba(0,0,0,0.78)',
       border: '1px solid rgba(255,255,255,0.1)',
       borderRadius: 10,
@@ -177,7 +168,6 @@ function ChatPanel({ players }: { players: Player[] }) {
       backdropFilter: 'blur(8px)',
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* Header */}
       <div style={{
         fontSize: 10, letterSpacing: 3, color: '#FFD700',
         padding: '7px 12px 5px',
@@ -185,13 +175,7 @@ function ChatPanel({ players }: { players: Player[] }) {
       }}>
         💬 ROOM CHAT
       </div>
-
-      {/* Messages */}
-      <div style={{
-        overflowY: 'auto', maxHeight: 110,
-        padding: '6px 10px',
-        scrollbarWidth: 'none',
-      }}>
+      <div style={{ overflowY: 'auto', maxHeight: 110, padding: '6px 10px', scrollbarWidth: 'none' }}>
         {msgs.map(m => (
           <div key={m.id} style={{ marginBottom: 4 }}>
             <span style={{ color: m.color, fontWeight: 'bold', fontSize: 10 }}>{m.name}: </span>
@@ -200,12 +184,7 @@ function ChatPanel({ players }: { players: Player[] }) {
         ))}
         <div ref={endRef} />
       </div>
-
-      {/* Input */}
-      <div style={{
-        display: 'flex', gap: 5, padding: '5px 8px',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-      }}>
+      <div style={{ display: 'flex', gap: 5, padding: '5px 8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -223,7 +202,7 @@ function ChatPanel({ players }: { players: Player[] }) {
           style={{
             background: '#FFD700', color: '#000', border: 'none',
             borderRadius: 5, fontSize: 11, fontWeight: 'bold',
-            padding: '4px 8px', cursor: 'pointer', fontFamily: 'inherit',
+            padding: '4px 8px', cursor: 'pointer',
           }}
         >▶</button>
       </div>
@@ -232,19 +211,18 @@ function ChatPanel({ players }: { players: Player[] }) {
 }
 
 // ─── Main HUD export ──────────────────────────────────────────────────────────
-export function HUD({ players, elapsed, sessionDuration, worldSpeed }: Props) {
+export function HUD({ players, elapsed, sessionDuration }: Props) {
   const remaining = Math.max(0, sessionDuration - elapsed)
-  const urgent    = remaining < 30
+  const urgent    = remaining < 30_000
   const sorted    = [...players].sort((a, b) => b.flagTime - a.flagTime)
   const carrier   = players.find(p => p.role === 'carrier' && p.alive)
-  const speedPct  = Math.min(100, ((worldSpeed - 0.04) / 0.06) * 100)
 
   return (
     <>
       {/* ── Chat — top left ── */}
       <ChatPanel players={players} />
 
-      {/* ── Session timer — top centre ── */}
+      {/* ── Timer — top centre ── */}
       <div style={{
         position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
         zIndex: 10, fontFamily: '"Courier New", monospace',
@@ -255,8 +233,12 @@ export function HUD({ players, elapsed, sessionDuration, worldSpeed }: Props) {
           borderRadius: 8, padding: '8px 22px',
           backdropFilter: 'blur(6px)', textAlign: 'center',
         }}>
-          <div style={{ fontSize: 10, letterSpacing: 3, color: urgent ? '#FF4444' : '#FFFFFF55', textTransform: 'uppercase', marginBottom: 3 }}>
-            {urgent ? '⚠ TIME' : 'Session'}
+          <div style={{
+            fontSize: 10, letterSpacing: 3,
+            color: urgent ? '#FF4444' : '#FFFFFF55',
+            marginBottom: 3,
+          }}>
+            {urgent ? '⚠ TIME' : 'SESSION'}
           </div>
           <div style={{
             fontSize: 34, fontWeight: 'bold', lineHeight: 1, letterSpacing: 2,
@@ -266,30 +248,24 @@ export function HUD({ players, elapsed, sessionDuration, worldSpeed }: Props) {
             {fmtCountdown(remaining)}
           </div>
         </div>
-        {/* Speed bar */}
-        <div style={{ marginTop: 6, background: 'rgba(0,0,0,0.6)', border: '1px solid #ffffff11', borderRadius: 6, padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 9, color: '#FFFFFF44', letterSpacing: 2 }}>SPEED</span>
-          <div style={{ flex: 1, height: 4, background: '#ffffff15', borderRadius: 2 }}>
-            <div style={{ height: '100%', width: `${speedPct}%`, background: 'linear-gradient(90deg,#00E5FF,#FFD700)', borderRadius: 2, transition: 'width 0.5s' }} />
-          </div>
-        </div>
       </div>
 
       {/* ── Minimap — top right ── */}
-      <div style={{
-        position: 'absolute', top: 18, right: 18, zIndex: 10,
-      }}>
+      <div style={{ position: 'absolute', top: 18, right: 18, zIndex: 10 }}>
         <Minimap players={players} />
       </div>
 
-      {/* ── Leaderboard — below minimap, right ── */}
+      {/* ── Leaderboard — below minimap ── */}
       <div style={{
         position: 'absolute', top: 18 + MM + 10, right: 18, zIndex: 10,
         background: 'rgba(0,0,0,0.78)', border: '1px solid #ffffff18',
         borderRadius: 10, padding: '12px 16px', minWidth: MM,
         fontFamily: '"Courier New", monospace', backdropFilter: 'blur(8px)',
       }}>
-        <div style={{ fontSize: 10, letterSpacing: 4, color: '#FFD700', marginBottom: 10, borderBottom: '1px solid #ffffff15', paddingBottom: 7 }}>
+        <div style={{
+          fontSize: 10, letterSpacing: 4, color: '#FFD700',
+          marginBottom: 10, borderBottom: '1px solid #ffffff15', paddingBottom: 7,
+        }}>
           🏆 FLAG TIME
         </div>
         {sorted.map((p, rank) => {

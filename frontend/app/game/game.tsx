@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 import { useGameState } from '../hooks/useGameState'
 import { GameScene } from '../components/GameScene'
 import { HUD } from '../components/HUD'
-import { Lobby } from '../components/Lobby'
 import { EndScreen } from '../components/EndScreen'
 
 // ─── App shell ────────────────────────────────────────────────────────────────
@@ -20,12 +19,6 @@ export default function FlagRun({ sessionDuration }: { sessionDuration?: number 
   const handleRestart = useCallback(() => {
     setConfiguredMinutes(null)
   }, [])
-
-  if (configuredMinutes === null) {
-    return <Lobby onStart={handleStart} initialDuration={sessionDuration} />
-  }
-
-  return <ActiveGame sessionMinutes={configuredMinutes} onRestart={handleRestart} />
 }
 
 // ─── Active game — owns the game state ────────────────────────────────────────
