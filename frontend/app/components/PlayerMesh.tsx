@@ -1,123 +1,132 @@
 'use client'
-
-import { useRef } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Text, Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import { Player } from '../types'
-import { SIDE_OFFSET } from '../constants'
 import { getPathPosition, getPathYaw } from '../utils/path'
+import { LANE_WIDTH, PLAYER_HEIGHT } from '../constants'
 
 type Props = { player: Player }
 
+// ─── Flag pole attached to carrier ───────────────────────────────────────────
+function FlagPole({ color }: { color: string }) {
+  return (
+    <group position={[0.3, PLAYER_HEIGHT * 0.6, 0]}>
+      {/* Pole */}
+      <mesh position={[0, 0.6, 0]}>
+        <cylinderGeometry args={[0.04, 0.04, 1.2, 5]} />
+        <meshLambertMaterial color="#cccccc" />
+      </mesh>
+      {/* Flag cloth */}
+      <mesh position={[0.25, 1.15, 0]}>
+        <boxGeometry args={[0.5, 0.28, 0.04]} />
+        <meshLambertMaterial color="#dc2626" />
+      </mesh>
+      {/* Star */}
+      <mesh position={[0.25, 1.15, 0.03]}>
+        <boxGeometry args={[0.08, 0.08, 0.02]} />
+        <meshLambertMaterial color="#ffffff" />
+      </mesh>
+    </group>
+  )
+}
+
+// ─── Player mesh ──────────────────────────────────────────────────────────────
 export function PlayerMesh({ player }: Props) {
-  const groupRef = useRef<THREE.Group>(null!)
-  const legLRef = useRef<THREE.Mesh>(null!)
-  const legRRef = useRef<THREE.Mesh>(null!)
-  const t = useRef(Math.random() * Math.PI * 2)
+  const groupRef  = useRef<THREE.Group>(null)
+  const legLRef   = useRef<THREE.Mesh>(null)
+  const legRRef   = useRef<THREE.Mesh>(null)
+  const armLRef   = useRef<THREE.Mesh>(null)
+  const armRRef   = useRef<THREE.Mesh>(null)
 
-  useFrame((_, delta) => {
-    if (!player.alive || !groupRef.current) return
-    t.current += delta * 7
+  const color = useMemo(() => new THREE.Color(player.color), [player.color])
 
-    // Leg animation
-    if (legLRef.current) legLRef.current.rotation.x = Math.sin(t.current) * 0.55
-    if (legRRef.current) legRRef.current.rotation.x = -Math.sin(t.current) * 0.55
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
 
-    // Compute world position from path
-    const worldPos = getPathPosition(player.pathT, player.side, player.yPos, SIDE_OFFSET)
+    // World position from spline
+    const pos = getPathPosition(player.pathT, player.side, player.yPos, LANE_WIDTH)
     const yaw = getPathYaw(player.pathT)
 
-    groupRef.current.position.lerp(worldPos, 0.22)
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(
-      groupRef.current.rotation.y,
-      yaw + Math.PI,
-      0.18
-    )
+    groupRef.current.position.copy(pos)
+    groupRef.current.rotation.y = yaw
+
+    // Walk cycle
+    const t = clock.getElapsedTime() * 6
+    const swing = player.alive && !player.isJumping ? Math.sin(t) * 0.35 : 0
+    if (legLRef.current)  legLRef.current.rotation.x  =  swing
+    if (legRRef.current)  legRRef.current.rotation.x  = -swing
+    if (armLRef.current)  armLRef.current.rotation.x  = -swing * 0.6
+    if (armRRef.current)  armRRef.current.rotation.x  =  swing * 0.6
   })
 
-  if (!player.alive) return null
-
-  const isCarrier = player.role === 'carrier'
-  const ei = isCarrier ? 0.6 : 0.1
-
-  // Initial position
-  const initPos = getPathPosition(player.pathT, player.side, player.yPos, SIDE_OFFSET)
+  const opacity = player.alive ? 1 : 0.25
 
   return (
-    <group ref={groupRef} position={initPos}>
-      {/* Shadow */}
-      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -player.yPos + 0.02, 0]} scale={[1, 0.6, 1]}>
-        <circleGeometry args={[0.32, 10]} />
-        <meshBasicMaterial color="black" transparent opacity={0.28 - player.yPos * 0.04} />
+    <group ref={groupRef}>
+      {/* ── Body ── */}
+      <mesh position={[0, PLAYER_HEIGHT * 0.48, 0]} castShadow>
+        <boxGeometry args={[0.38, 0.55, 0.22]} />
+        <meshLambertMaterial color={color} transparent opacity={opacity} />
       </mesh>
 
-      {/* Body */}
-      <mesh castShadow position={[0, 0.82, 0]}>
-        <capsuleGeometry args={[0.27, 0.5, 8, 16]} />
-        <meshStandardMaterial color={player.color} emissive={player.color} emissiveIntensity={ei} roughness={0.3} metalness={0.4} />
+      {/* ── Head ── */}
+      <mesh position={[0, PLAYER_HEIGHT * 0.82, 0]} castShadow>
+        <sphereGeometry args={[0.22, 10, 8]} />
+        <meshLambertMaterial color="#f5c5a3" transparent opacity={opacity} />
       </mesh>
 
-      {/* Head */}
-      <mesh castShadow position={[0, 1.5, 0]}>
-        <sphereGeometry args={[0.21, 16, 16]} />
-        <meshStandardMaterial color={player.color} emissive={player.color} emissiveIntensity={ei * 0.6} roughness={0.4} />
+      {/* ── Eyes ── */}
+      <mesh position={[0.08, PLAYER_HEIGHT * 0.84, 0.21]}>
+        <sphereGeometry args={[0.04, 6, 6]} />
+        <meshLambertMaterial color="#111" />
+      </mesh>
+      <mesh position={[-0.08, PLAYER_HEIGHT * 0.84, 0.21]}>
+        <sphereGeometry args={[0.04, 6, 6]} />
+        <meshLambertMaterial color="#111" />
       </mesh>
 
-      {/* Eyes */}
-      {[-0.09, 0.09].map((x, i) => (
-        <mesh key={i} position={[x, 1.55, 0.19]}>
-          <sphereGeometry args={[0.045, 8, 8]} />
-          <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.9} />
+      {/* ── Left leg ── */}
+      <mesh ref={legLRef} position={[-0.1, PLAYER_HEIGHT * 0.18, 0]} castShadow>
+        <boxGeometry args={[0.13, 0.5, 0.13]} />
+        <meshLambertMaterial color={color} transparent opacity={opacity} />
+      </mesh>
+
+      {/* ── Right leg ── */}
+      <mesh ref={legRRef} position={[0.1, PLAYER_HEIGHT * 0.18, 0]} castShadow>
+        <boxGeometry args={[0.13, 0.5, 0.13]} />
+        <meshLambertMaterial color={color} transparent opacity={opacity} />
+      </mesh>
+
+      {/* ── Left arm ── */}
+      <mesh ref={armLRef} position={[-0.28, PLAYER_HEIGHT * 0.52, 0]} castShadow>
+        <boxGeometry args={[0.11, 0.42, 0.11]} />
+        <meshLambertMaterial color={color} transparent opacity={opacity} />
+      </mesh>
+
+      {/* ── Right arm (holds gun if chaser) ── */}
+      <group ref={armRRef} position={[0.28, PLAYER_HEIGHT * 0.52, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.11, 0.42, 0.11]} />
+          <meshLambertMaterial color={color} transparent opacity={opacity} />
         </mesh>
-      ))}
-
-      {/* Legs */}
-      <mesh ref={legLRef} castShadow position={[-0.12, 0.28, 0]}>
-        <capsuleGeometry args={[0.09, 0.4, 6, 8]} />
-        <meshStandardMaterial color={player.color} roughness={0.6} />
-      </mesh>
-      <mesh ref={legRRef} castShadow position={[0.12, 0.28, 0]}>
-        <capsuleGeometry args={[0.09, 0.4, 6, 8]} />
-        <meshStandardMaterial color={player.color} roughness={0.6} />
-      </mesh>
-
-      {/* Flag pole (carrier) */}
-      {isCarrier && (
-        <group position={[0.32, 1.0, 0]}>
-          <mesh position={[0, 0.5, 0]}>
-            <cylinderGeometry args={[0.03, 0.03, 1.1, 6]} />
-            <meshStandardMaterial color="#CCC" metalness={0.8} />
+        {player.role === 'chaser' && player.alive && (
+          <mesh position={[0.18, -0.08, 0]}>
+            <boxGeometry args={[0.35, 0.1, 0.1]} />
+            <meshLambertMaterial color="#444" />
           </mesh>
-          <mesh position={[0.27, 0.95, 0]}>
-            <planeGeometry args={[0.5, 0.32]} />
-            <meshStandardMaterial color="#FFD700" side={THREE.DoubleSide} emissive="#FFD700" emissiveIntensity={0.6} />
-          </mesh>
-        </group>
+        )}
+      </group>
+
+      {/* ── Flag if carrier ── */}
+      {player.role === 'carrier' && player.alive && (
+        <FlagPole color={player.color} />
       )}
 
-      {/* Weapon (chasers) */}
-      {!isCarrier && (
-        <mesh position={[0.36, 0.82, 0.08]} rotation={[0, 0, -0.35]}>
-          <boxGeometry args={[0.46, 0.09, 0.07]} />
-          <meshStandardMaterial color="#FF6600" emissive="#FF3300" emissiveIntensity={0.4} metalness={0.85} />
-        </mesh>
-      )}
-
-      {/* Crown (carrier) */}
-      {isCarrier && (
-        <mesh position={[0, 1.78, 0]}>
-          <coneGeometry args={[0.14, 0.22, 5]} />
-          <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={1.2} />
-        </mesh>
-      )}
-
-      {/* Name tag */}
-      <Billboard position={[0, 2.1, 0]}>
-        <Text fontSize={0.26} color={player.color} anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="black">
-          {player.name}
-        </Text>
-      </Billboard>
+      {/* ── Name label (billboard via sprite) ── */}
+      <sprite position={[0, PLAYER_HEIGHT + 0.5, 0]} scale={[1.6, 0.38, 1]}>
+        <spriteMaterial color={player.color} opacity={0.85} transparent />
+      </sprite>
     </group>
   )
 }

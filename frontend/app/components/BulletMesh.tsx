@@ -1,33 +1,45 @@
 'use client'
-
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { Bullet } from '../types'
-import { SIDE_OFFSET } from '../constants'
+import { Bullet, Player } from '../types'
 import { getPathPosition } from '../utils/path'
+import { LANE_WIDTH } from '../constants'
 
-export function BulletMesh({ bullet, shooterColor }: { bullet: Bullet; shooterColor: string }) {
-  const trailRef = useRef<THREE.Mesh>(null!)
+type Props = {
+  bullets: Bullet[]
+  players: Player[]
+}
 
-  useFrame((state) => {
-    if (trailRef.current) {
-      trailRef.current.scale.z = 1 + Math.sin(state.clock.elapsedTime * 15) * 0.3
-    }
+export function BulletMesh({ bullets, players }: Props) {
+  return (
+    <>
+      {bullets.map(b => (
+        <SingleBullet key={b.id} bullet={b} players={players} />
+      ))}
+    </>
+  )
+}
+
+function SingleBullet({ bullet, players }: { bullet: Bullet; players: Player[] }) {
+  const meshRef = useRef<THREE.Mesh>(null)
+  const owner   = players.find(p => p.id === bullet.ownerId)
+  const color   = owner ? new THREE.Color(owner.color) : new THREE.Color('#ffffff')
+
+  useFrame(() => {
+    if (!meshRef.current) return
+    const pos = getPathPosition(bullet.pathT, bullet.side, 0.9, LANE_WIDTH)
+    meshRef.current.position.copy(pos)
   })
 
-  const pos = getPathPosition(bullet.pathT, bullet.side, 0.9, SIDE_OFFSET)
-
   return (
-    <group position={[pos.x, pos.y, pos.z]}>
-      <mesh castShadow>
-        <sphereGeometry args={[0.13, 8, 8]} />
-        <meshStandardMaterial color={shooterColor} emissive={shooterColor} emissiveIntensity={3} />
-      </mesh>
-      <mesh ref={trailRef} position={[0, 0, 0.3]}>
-        <cylinderGeometry args={[0.04, 0.01, 0.7, 6]} />
-        <meshStandardMaterial color={shooterColor} emissive={shooterColor} emissiveIntensity={1.5} transparent opacity={0.5} />
-      </mesh>
-    </group>
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[0.12, 7, 7]} />
+      <meshBasicMaterial color={color} />
+      {/* Glow sprite behind bullet */}
+      <sprite scale={[0.55, 0.55, 1]}>
+        <spriteMaterial color={color} opacity={0.45} transparent />
+      </sprite>
+    </mesh>
   )
 }

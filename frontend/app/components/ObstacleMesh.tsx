@@ -1,73 +1,85 @@
 'use client'
-
-import { useMemo } from 'react'
-import * as THREE from 'three'
+import React from 'react'
 import { Obstacle } from '../types'
-import { SIDE_OFFSET } from '../constants'
-import { getPathPosition } from '../utils/path'
+import { getPathPosition, getPathYaw } from '../utils/path'
+import { LANE_WIDTH } from '../constants'
 
-function TreeObs() {
+type Props = { obstacles: Obstacle[] }
+
+function TreeObstacle() {
   return (
     <group>
-      <mesh castShadow position={[0, 1.2, 0]}>
-        <cylinderGeometry args={[0.18, 0.26, 2.4, 7]} />
-        <meshStandardMaterial color="#5C3D1E" roughness={0.9} />
+      <mesh position={[0, 0.7, 0]} castShadow>
+        <cylinderGeometry args={[0.15, 0.22, 1.4, 6]} />
+        <meshLambertMaterial color="#6B4226" />
       </mesh>
-      <mesh castShadow position={[0, 2.8, 0]}>
-        <coneGeometry args={[1.0, 2.2, 7]} />
-        <meshStandardMaterial color="#1A5C2A" roughness={0.8} />
-      </mesh>
-      <mesh castShadow position={[0, 3.8, 0]}>
-        <coneGeometry args={[0.7, 1.6, 7]} />
-        <meshStandardMaterial color="#236B33" roughness={0.8} />
+      <mesh position={[0, 1.9, 0]} castShadow>
+        <coneGeometry args={[0.75, 1.6, 7]} />
+        <meshLambertMaterial color="#166534" />
       </mesh>
     </group>
   )
 }
 
-function RockObs() {
+function RockObstacle() {
   return (
-    <mesh castShadow position={[0, 0.5, 0]}>
-      <dodecahedronGeometry args={[0.75, 0]} />
-      <meshStandardMaterial color="#5A5A5A" roughness={0.95} />
+    <mesh position={[0, 0.35, 0]} castShadow>
+      <dodecahedronGeometry args={[0.55, 0]} />
+      <meshLambertMaterial color="#7a7a7a" />
     </mesh>
   )
 }
 
-function LogObs() {
+function LogObstacle() {
   return (
-    <mesh castShadow position={[0, 0.3, 0]} rotation={[0, Math.PI * 0.3, Math.PI / 2]}>
-      <cylinderGeometry args={[0.32, 0.32, 2.2, 10]} />
-      <meshStandardMaterial color="#6B4226" roughness={0.9} />
+    <mesh rotation={[0, 0, Math.PI / 2]} position={[0, 0.25, 0]} castShadow>
+      <cylinderGeometry args={[0.22, 0.22, 1.2, 8]} />
+      <meshLambertMaterial color="#8B5E3C" />
     </mesh>
   )
 }
 
-function BarrelObs() {
+function BarrelObstacle() {
   return (
     <group>
-      <mesh castShadow position={[0, 0.48, 0]}>
-        <cylinderGeometry args={[0.38, 0.38, 0.95, 12]} />
-        <meshStandardMaterial color="#CC4400" roughness={0.6} metalness={0.3} />
+      <mesh position={[0, 0.45, 0]} castShadow>
+        <cylinderGeometry args={[0.28, 0.28, 0.9, 10]} />
+        <meshLambertMaterial color="#c0392b" />
       </mesh>
-      {[0.14, -0.14].map((y, i) => (
-        <mesh key={i} position={[0, 0.48 + y, 0]}>
-          <torusGeometry args={[0.39, 0.04, 6, 16]} />
-          <meshStandardMaterial color="#333" metalness={0.8} />
-        </mesh>
+      {/* Stripe */}
+      <mesh position={[0, 0.45, 0]}>
+        <cylinderGeometry args={[0.285, 0.285, 0.12, 10]} />
+        <meshLambertMaterial color="#f1c40f" />
+      </mesh>
+    </group>
+  )
+}
+
+const OBSTACLE_MAP: Record<string, () => React.ReactElement> = {
+  tree:   () => <TreeObstacle />,
+  rock:   () => <RockObstacle />,
+  log:    () => <LogObstacle />,
+  barrel: () => <BarrelObstacle />,
+}
+
+function SingleObstacle({ obstacle }: { obstacle: Obstacle }) {
+  const pos = getPathPosition(obstacle.pathT, obstacle.side, 0, LANE_WIDTH)
+  const yaw = getPathYaw(obstacle.pathT)
+  const Model = OBSTACLE_MAP[obstacle.type] ?? (() => <RockObstacle />)
+
+  return (
+    <group position={pos} rotation={[0, yaw, 0]}>
+      <Model />
+    </group>
+  )
+}
+
+export function ObstacleMesh({ obstacles }: Props) {
+  return (
+    <>
+      {obstacles.map(o => (
+        <SingleObstacle key={o.id} obstacle={o} />
       ))}
-    </group>
-  )
-}
-
-export function ObstacleMesh({ obstacle }: { obstacle: Obstacle }) {
-  const pos = getPathPosition(obstacle.pathT, obstacle.side, 0, SIDE_OFFSET)
-  return (
-    <group position={[pos.x, pos.y, pos.z]}>
-      {obstacle.type === 'tree'   && <TreeObs />}
-      {obstacle.type === 'rock'   && <RockObs />}
-      {obstacle.type === 'log'    && <LogObs />}
-      {obstacle.type === 'barrel' && <BarrelObs />}
-    </group>
+    </>
   )
 }

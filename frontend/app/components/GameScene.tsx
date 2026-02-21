@@ -1,48 +1,39 @@
 'use client'
-
-import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { GameState } from '../hooks/useGameState'
-import { PlayerMesh } from './PlayerMesh'
-import { ObstacleMesh } from './ObstacleMesh'
-import { BulletMesh } from './BulletMesh'
-import { Track } from './Track'
-import { CameraRig } from './CameraRig'
 import { SceneLighting } from './SceneLighting'
+import { Track } from './Track'
+import { PlayerMesh } from './PlayerMesh'
+import { BulletMesh } from './BulletMesh'
+import { ObstacleMesh } from './ObstacleMesh'
+import { CameraRig } from './CameraRig'
 
 type Props = { state: GameState }
 
 export function GameScene({ state }: Props) {
-  const carrier = state.players.find(p => p.role === 'carrier' && p.alive)
-  const colorMap = Object.fromEntries(state.players.map(p => [p.id, p.color]))
-
   return (
     <Canvas
       shadows
-      gl={{ antialias: true }}
-      camera={{ fov: 55, near: 0.1, far: 300 }}
       style={{ width: '100%', height: '100%' }}
+      camera={{ fov: 60, near: 0.1, far: 300 }}
+      gl={{ antialias: true }}
     >
-      <color attach="background" args={['#1a0a30']} />
+      <SceneLighting />
+      <Track />
 
-      <CameraRig carrier={carrier} />
-      <SceneLighting carrier={carrier} />
+      {/* Players */}
+      {state.players.map(p => (
+        <PlayerMesh key={p.id} player={p} />
+      ))}
 
-      <Suspense fallback={null}>
-        <Track />
+      {/* Bullets */}
+      <BulletMesh bullets={state.bullets} players={state.players} />
 
-        {state.obstacles.map(obs => (
-          <ObstacleMesh key={obs.id} obstacle={obs} />
-        ))}
+      {/* Obstacles */}
+      <ObstacleMesh obstacles={state.obstacles} />
 
-        {state.players.map(p => (
-          <PlayerMesh key={p.id} player={p} />
-        ))}
-
-        {state.bullets.map(b => (
-          <BulletMesh key={b.id} bullet={b} shooterColor={colorMap[b.ownerId] ?? '#FF6600'} />
-        ))}
-      </Suspense>
+      {/* Camera follows carrier */}
+      <CameraRig players={state.players} />
     </Canvas>
   )
 }
