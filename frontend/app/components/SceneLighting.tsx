@@ -1,45 +1,28 @@
 'use client'
 
-import * as THREE from 'three'
-import { Player } from '../types'
-import { SIDE_OFFSET } from '../constants'
-import { getPathPosition } from '../utils/path'
-
-export function SceneLighting({ carrier }: { carrier: Player | undefined }) {
-  const carrierPos = carrier
-    ? getPathPosition(carrier.pathT, carrier.side, 0, SIDE_OFFSET)
-    : new THREE.Vector3(0, 0, 0)
-
+// Ambient + directional lights that give the world a slightly dramatic top-down feel.
+export function SceneLighting() {
   return (
     <>
-      <ambientLight intensity={0.55} color="#b8d4ff" />
+      <ambientLight intensity={0.55} color="#c8d8ff" />
       <directionalLight
-        position={[20, 35, 20]}
-        intensity={1.3}
+        position={[8, 18, 6]}
+        intensity={1.4}
+        color="#fffbe8"
         castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-far={100}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
-        color="#fff8e0"
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-near={0.5}
+        shadow-camera-far={80}
+        shadow-camera-left={-40}
+        shadow-camera-right={40}
+        shadow-camera-top={40}
+        shadow-camera-bottom={-40}
       />
-      {/* Fill light from opposite side */}
-      <directionalLight position={[-15, 20, -20]} intensity={0.4} color="#9090ff" />
-
-      {/* Carrier spotlight */}
-      {carrier && carrier.alive && (
-        <pointLight
-          position={[carrierPos.x, carrierPos.y + 6, carrierPos.z]}
-          intensity={2}
-          color="#FFD700"
-          distance={10}
-        />
-      )}
-
-      {/* Atmospheric fog matching the purple swamp */}
-      <fog attach="fog" args={['#2a1450', 50, 120]} />
+      {/* Soft fill from the opposite side */}
+      <directionalLight position={[-6, 8, -10]} intensity={0.3} color="#a0c4ff" />
+      {/* Ground bounce */}
+      <hemisphereLight args={['#87ceeb', '#3a5c2a', 0.4]} />
     </>
   )
 }
