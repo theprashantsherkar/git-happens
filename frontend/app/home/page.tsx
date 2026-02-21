@@ -49,14 +49,14 @@ export default function HomePage() {
           FLAG<span style={{ color: '#ef4444' }}>ZILLA</span>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Link href="/login" style={{
+          <Link href="/auth/login" style={{
             padding: '8px 20px', borderRadius: 7, fontSize: 12,
             border: '1px solid rgba(255,255,255,0.2)', color: '#fff',
             textDecoration: 'none', letterSpacing: 2,
           }}>
             LOGIN
           </Link>
-          <Link href="/register" style={{
+          <Link href="/auth/register" style={{
             padding: '8px 20px', borderRadius: 7, fontSize: 12,
             background: '#FFD700', color: '#000', fontWeight: 'bold',
             textDecoration: 'none', letterSpacing: 2,
