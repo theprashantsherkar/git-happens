@@ -288,7 +288,7 @@ export function HUD({ players, elapsed, sessionDuration }: Props) {
       </div>
 
       {/* ── Controls — bottom left ── */}
-      <div style={{
+      {/* <div style={{
         position: 'absolute', bottom: 18, left: 18, zIndex: 10,
         display: 'flex', flexDirection: 'column', gap: 4,
       }}>
@@ -307,7 +307,7 @@ export function HUD({ players, elapsed, sessionDuration }: Props) {
             {!p.alive && <span style={{ fontSize: 9, color: '#FF4444' }}>💀</span>}
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* ── Carrier banner — bottom centre ── */}
       {carrier && (
