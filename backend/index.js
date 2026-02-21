@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 import express, { urlencoded } from 'express'
 import userRoutes from "./routes/userRoutes.js"
+import io from './socket.js'
+import cors from 'cors'
 
 
 dotenv.config({
@@ -10,7 +12,12 @@ dotenv.config({
 
 const app = express();
 app.use(express.json(urlencoded({ extended: true })));
+app.use(cors({
+    origin: "*",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"]
 
+}));
 
 app.get('/', (req, res) => {
     return res.json({
