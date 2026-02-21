@@ -1,8 +1,7 @@
-import jwt from 'jsonwebtoken'
+
 import dotenv from 'dotenv'
 import express, { urlencoded } from 'express'
 import userRoutes from "./routes/userRoutes.js"
-import io from './socket.js'
 import cors from 'cors'
 
 
