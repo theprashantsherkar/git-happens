@@ -1,5 +1,5 @@
 import { createRoom, getRoom } from "../game/rooms/roomManager.js"
-import { startGameLoop } from "../game/rooms/gameLoop.js"
+import { finalizeMatch, startGameLoop } from "../game/rooms/gameLoop.js"
 import { MAX_PLAYERS_PER_ROOM, MAX_MOVE_DISTANCE, MAP_HEIGHT, MAP_WIDTH} from "../game/constant.js"
 
 
@@ -59,6 +59,69 @@ export default function registerHandlers(io, socket) {
 
         player.x = clamped.x
         player.y = clamped.y
+    })
+
+    socket.on("find_match", () => {
+        addToQueue({
+            socketId: socket.id,
+            userId: socket.userId,
+            username:socket.username
+        })
+        
+        const players = createMatch();
+        if (players) {
+            const roomId = `room_${Date.now()}`
+            const room = createRoom(roomId);
+            players.forEach((p) => {
+                const s = io.sockets.sockets.get(p.socketId);
+                if (!s) return;
+                s.join(roomId);
+                room.players[p.socketId] = {
+                    id: p.socketId,
+                    username: p.username,
+                    x: Math.random() * MAP_WIDTH,
+                    y: Math.random() * MAP_HEIGHT,
+                    possessionTime: 0,
+                    hasFlag: false,
+                    hasWeapon: true,
+                    isAlive: true,
+                    lastMoveTime: Date.now()
+                }
+                s.emit("match_found", { roomId });
+            })
+            startGameLoop(io, roomId, room);
+        }
+    })
+
+    socket.on("send_message", ({ roomId, message }) => {
+
+        if (!message || message.trim() === "") return
+
+        const room = getRoom(roomId);
+        if (!room) return
+
+        // Optional: prevent dead players from chatting
+        const player = room.players[socket.id]
+        if (!player) return
+
+        const chatPayload = {
+            username: player.username,
+            message: message.trim(),
+            timestamp: Date.now()
+        }
+
+        io.to(roomId).emit("receive_message", chatPayload)
+    })
+
+
+    socket.on("match_ended", ({ roomId }) => {
+        removeFromQueue(socket.id)
+        const room = getRoom(roomId)
+        if (room) {
+            finalizeMatch(room)
+            io.to(roomId).emit("game_over", room)
+        }
+
     })
 
 }
