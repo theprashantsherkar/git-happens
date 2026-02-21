@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useMusic } from "../../hooks/useAudio";
 
 interface RegisterForm {
   username: string;
@@ -31,7 +32,8 @@ function getPasswordStrength(password: string): PasswordStrength {
 }
 
 export default function RegisterPage() {
-  const [form, setForm] = useState<RegisterForm>({
+    useMusic("nav");
+    const [form, setForm] = useState<RegisterForm>({
     username: "",
     email: "",
     password: "",
@@ -1010,3 +1012,4 @@ export default function RegisterPage() {
     </>
   );
 }
+
