@@ -1,0 +1,20 @@
+import app from "./index.js";
+import { connectDB } from "./database/db.js";
+import { Server } from 'socket.io'
+import http from 'http'
+import registerSocketHandlers from "./socket.js";
+
+connectDB();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "DELETE"]
+    }
+})
+
+registerSocketHandlers(io);
+
+app.listen(5000, () => {
+    console.log("Server up and running at port 5000")
+})
