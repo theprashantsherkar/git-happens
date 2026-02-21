@@ -2,9 +2,7 @@ import jwt from "jsonwebtoken";
 import registerHandlers from "./handlers.js";
 
 export default function registerSocketHandlers(io) {
-    io.on("connection", (socket) => {
-        registerHandlers(io, socket)
-    });
+   
 
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;
@@ -21,4 +19,8 @@ export default function registerSocketHandlers(io) {
             return next(new Error("Invalid token"));
         }
     })
+
+    io.on("connection", (socket) => {
+        registerHandlers(io, socket)
+    });
 }
