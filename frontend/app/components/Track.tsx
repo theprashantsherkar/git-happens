@@ -17,7 +17,7 @@ function GroundPlane() {
 // ─── Track tube ───────────────────────────────────────────────────────────────
 function TrackTube() {
   const geometry = useMemo(() => {
-    return new THREE.TubeGeometry(PATH_SPLINE, 200, TRACK_RADIUS + LANE_WIDTH, 8, true)
+    return new THREE.TubeGeometry(PATH_SPLINE, 500, 0.2, 8, true)
   }, [])
 
   return (
