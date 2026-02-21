@@ -1,6 +1,6 @@
-import { createRoom, getRoom } from "../game/roomManager.js"
-import { startGameLoop } from "../game/gameLoop.js"
-import { MAX_PLAYERS_PER_ROOM, MAX_MOVE_DISTANCE, MAP_HEIGHT } from "../game/constant.js"
+import { createRoom, getRoom } from "../game/rooms/roomManager.js"
+import { startGameLoop } from "../game/rooms/gameLoop.js"
+import { MAX_PLAYERS_PER_ROOM, MAX_MOVE_DISTANCE, MAP_HEIGHT, MAP_WIDTH} from "../game/constant.js"
 
 
 export default function registerHandlers(io, socket) {
@@ -64,7 +64,6 @@ export default function registerHandlers(io, socket) {
 }
 
 
-import { MAP_WIDTH, MAP_HEIGHT } from "../game/constants.js"
 
 function clampPosition(x, y) {
     return {

@@ -1,6 +1,6 @@
 import { GAME_TICK, GAME_DURATION } from "../constant.js"
-import { isColliding } from "./collision.js"
-import { handleKill, handleFlagPickup } from "./engine.js"
+import { isColliding } from "../collisions/collisions.js"
+import { handleKill, handleFlagPickup } from "../engine.js"
 
 export function startGameLoop(io, roomId, room) {
 

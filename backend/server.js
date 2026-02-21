@@ -2,7 +2,7 @@ import app from "./index.js";
 import { connectDB } from "./database/db.js";
 import { Server } from 'socket.io'
 import http from 'http'
-import registerSocketHandlers from "./socket.js";
+import registerSocketHandlers from "./socket/index.js";
 
 connectDB();
 const server = http.createServer(app);
