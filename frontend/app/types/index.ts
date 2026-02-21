@@ -1,37 +1,45 @@
-export type Vec3 = [number, number, number]
-
 export type PlayerRole = 'carrier' | 'chaser'
 
 export type Player = {
   id: number
   name: string
   color: string
-  // Path-based position: t = 0..1 along the spline, side = -1|0|1 lateral offset
-  pathT: number        // 0 = start, 1 = end of loop
-  side: number         // -1 left, 0 center, 1 right of path
+  // Free-roam world position
+  x: number            // world X
+  z: number            // world Z
+  angle: number        // facing direction in radians (Y-axis rotation)
+  vx: number           // velocity X (for smooth movement)
+  vz: number           // velocity Z
   alive: boolean
   role: PlayerRole
-  flagTime: number
+  flagTime: number     // ms holding flag
   flagHoldStart: number | null
   kills: number
   isJumping: boolean
   jumpVelocity: number
-  yPos: number         // vertical jump height
+  yPos: number
 }
 
 export type Obstacle = {
   id: number
-  pathT: number        // position along the path
-  side: number         // which lane
+  x: number
+  z: number
   type: 'tree' | 'rock' | 'log' | 'barrel'
 }
 
 export type Bullet = {
   id: number
   ownerId: number
-  side: number
-  pathT: number
-  dt: number           // delta-T per second (positive = forward along path)
+  x: number
+  z: number
+  vx: number
+  vz: number
+}
+
+export type Flag = {
+  x: number
+  z: number
+  carrierId: number | null
 }
 
 export type GamePhase = 'lobby' | 'playing' | 'ended'

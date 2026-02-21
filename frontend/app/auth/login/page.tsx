@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useMusic } from "../../hooks/useAudio";
 
 interface LoginForm {
   email: string;
@@ -14,6 +15,7 @@ interface ApiResponse {
 }
 
 export default function LoginPage() {
+  useMusic("nav");
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);

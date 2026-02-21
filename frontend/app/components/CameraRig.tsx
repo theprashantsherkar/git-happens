@@ -3,52 +3,50 @@ import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Player } from '../types'
-import { getPathPosition, getPathYaw } from '../utils/path'
-import { LANE_WIDTH, CAM_OFFSET_Y, CAM_OFFSET_Z, CAM_LERP } from '../constants'
 
 type Props = { players: Player[] }
 
+// Camera sits behind + above player 0 (Blue), following their angle
+const CAM_BACK   = 10   // units behind player
+const CAM_HEIGHT = 7    // units above player
+const CAM_LERP   = 0.06 // smoothing (lower = smoother)
+
 export function CameraRig({ players }: Props) {
   const { camera } = useThree()
-  const targetPos  = useRef(new THREE.Vector3())
-  const targetLook = useRef(new THREE.Vector3())
-  const currentPos = useRef<THREE.Vector3 | null>(null)
+  const targetPos = useRef(new THREE.Vector3(0, CAM_HEIGHT, CAM_BACK))
+  const targetLook = useRef(new THREE.Vector3(0, 0, 0))
 
   useFrame(() => {
-    // Follow the carrier; fallback to first alive player
-    const carrier = players.find(p => p.role === 'carrier' && p.alive)
-                 ?? players.find(p => p.alive)
-    if (!carrier) return
+    // Follow player 0 (local player is always Blue for local play)
+    // TODO: in multiplayer, follow the actual local player
+    const local = players.find(p => p.alive) ?? players[0]
+    if (!local) return
 
-    const subjectPos = getPathPosition(carrier.pathT, carrier.side, carrier.yPos, LANE_WIDTH)
-    const yaw        = getPathYaw(carrier.pathT)
+    // Desired camera position: behind the player in the direction they face
+    const behindX = local.x - Math.sin(local.angle) * CAM_BACK
+    const behindZ = local.z - Math.cos(local.angle) * CAM_BACK
 
-    // Camera sits behind and above the subject, offset along the path tangent
-    const sinY = Math.sin(yaw)
-    const cosY = Math.cos(yaw)
+    targetPos.current.set(behindX, CAM_HEIGHT, behindZ)
+    targetLook.current.set(local.x, 1.0, local.z)
 
-    targetPos.current.set(
-      subjectPos.x - sinY * CAM_OFFSET_Z,
-      subjectPos.y + CAM_OFFSET_Y,
-      subjectPos.z - cosY * CAM_OFFSET_Z,
-    )
-
-    // Look at a point slightly ahead of the carrier
-    targetLook.current.set(
-      subjectPos.x + sinY * 4,
-      subjectPos.y + 1,
-      subjectPos.z + cosY * 4,
-    )
-
-    // Initialise on first frame
-    if (!currentPos.current) {
-      currentPos.current = targetPos.current.clone()
-      camera.position.copy(currentPos.current)
-    }
-
-    // Smooth lerp
+    // Smooth camera movement
     camera.position.lerp(targetPos.current, CAM_LERP)
-    camera.lookAt(targetLook.current)
+
+    // Smooth look-at
+    const currentLook = new THREE.Vector3()
+    camera.getWorldDirection(currentLook)
+    const desiredDir = new THREE.Vector3(
+      targetLook.current.x - camera.position.x,
+      targetLook.current.y - camera.position.y,
+      targetLook.current.z - camera.position.z
+    ).normalize()
+
+    const lerpedDir = currentLook.lerp(desiredDir, CAM_LERP * 2)
+    camera.lookAt(
+      camera.position.x + lerpedDir.x,
+      camera.position.y + lerpedDir.y,
+      camera.position.z + lerpedDir.z
+    )
   })
 
   return null
