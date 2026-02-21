@@ -3,7 +3,6 @@ import { useEffect, useReducer, useRef } from 'react'
 import { Player, Obstacle, Bullet, Flag, GamePhase } from '../types'
 import { PLAYER_COLORS, PLAYER_NAMES } from '../constants'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const WORLD_SIZE = 80
 const MOVE_SPEED = 12
 const TURN_SPEED = 2.2
@@ -13,6 +12,9 @@ const FLAG_PICKUP_R = 2.5
 const HIT_RADIUS = 1.5
 const RESPAWN_DELAY = 3000
 
+const GRAVITY = -30
+const JUMP_FORCE = 12
+
 const SPAWN: [number, number, number][] = [
   [-30, 0, 30],
   [30, 0, 30],
@@ -20,7 +22,6 @@ const SPAWN: [number, number, number][] = [
   [30, 0, -30],
 ]
 
-// ─── State ────────────────────────────────────────────────────────────────────
 export type GameState = {
   phase: GamePhase
   players: Player[]
@@ -33,7 +34,7 @@ export type GameState = {
 }
 
 const BINDINGS = [
-  { left: 'ArrowLeft', right: 'ArrowRight', forward: 'ArrowUp', shoot: 'Space' },
+  { left: 'ArrowLeft', right: 'ArrowRight', forward: 'ArrowUp', jump: 'Space', shoot: 'KeyK' },
   { left: 'KeyA', right: 'KeyD', forward: 'KeyW', shoot: 'KeyF' },
   { left: 'KeyJ', right: 'KeyL', forward: 'KeyI', shoot: 'KeyU' },
   { left: 'Numpad4', right: 'Numpad6', forward: 'Numpad8', shoot: 'Numpad0' },
@@ -45,12 +46,6 @@ type Action =
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
-}
-
-function dist(ax: number, az: number, bx: number, bz: number) {
-  const dx = ax - bx
-  const dz = az - bz
-  return Math.sqrt(dx * dx + dz * dz)
 }
 
 function spawnObstacles(): Obstacle[] {
@@ -107,10 +102,7 @@ function reducer(state: GameState, action: Action): GameState {
   if (action.type === 'TICK') {
     const { dt, keys, enabled } = action
 
-    if (!enabled) {
-      return state
-    }
-
+    if (!enabled) return state
     if (state.phase !== 'playing') return state
 
     const now = Date.now()
@@ -122,6 +114,7 @@ function reducer(state: GameState, action: Action): GameState {
       if (!b) return p
 
       let angle = p.angle
+
       if (keys.has(b.left)) angle += TURN_SPEED * dt
       if (keys.has(b.right)) angle -= TURN_SPEED * dt
 
@@ -136,7 +129,29 @@ function reducer(state: GameState, action: Action): GameState {
       x = clamp(x, -WORLD_SIZE, WORLD_SIZE)
       z = clamp(z, -WORLD_SIZE, WORLD_SIZE)
 
-      if (keys.has(b.shoot)) {
+      // 🔥 JUMP LOGIC
+      let yPos = p.yPos
+      let jumpVelocity = p.jumpVelocity
+      let isJumping = p.isJumping
+
+      if (b.jump && keys.has(b.jump) && !isJumping) {
+        isJumping = true
+        jumpVelocity = JUMP_FORCE
+      }
+
+      if (isJumping) {
+        jumpVelocity += GRAVITY * dt
+        yPos += jumpVelocity * dt
+
+        if (yPos <= 0) {
+          yPos = 0
+          jumpVelocity = 0
+          isJumping = false
+        }
+      }
+
+      // Shooting still works
+      if (b.shoot && keys.has(b.shoot)) {
         const lastShot = (p as any)._lastShot ?? 0
         if (now - lastShot > 350) {
           newBullets.push({
@@ -151,7 +166,15 @@ function reducer(state: GameState, action: Action): GameState {
         }
       }
 
-      return { ...p, x, z, angle }
+      return {
+        ...p,
+        x,
+        z,
+        angle,
+        yPos,
+        jumpVelocity,
+        isJumping,
+      }
     })
 
     const bullets = [
@@ -166,23 +189,71 @@ function reducer(state: GameState, action: Action): GameState {
       ...newBullets,
     ]
 
-    let elapsed = state.elapsed + dt * 1000
+    // ✅ FLAG LOGIC (unchanged)
+    let flag = { ...state.flag }
+    let playersUpdated = [...players]
+
+    if (flag.carrierId === null) {
+      for (let i = 0; i < playersUpdated.length; i++) {
+        const p = playersUpdated[i]
+        if (!p.alive) continue
+
+        const dx = p.x - flag.x
+        const dz = p.z - flag.z
+
+        if (dx * dx + dz * dz < FLAG_PICKUP_R * FLAG_PICKUP_R) {
+          flag.carrierId = p.id
+          playersUpdated[i] = {
+            ...p,
+            role: 'carrier',
+            flagHoldStart: Date.now(),
+          }
+          break
+        }
+      }
+    } else {
+      const carrierIndex = playersUpdated.findIndex(
+        p => p.id === flag.carrierId
+      )
+
+      if (carrierIndex !== -1) {
+        const carrier = playersUpdated[carrierIndex]
+
+        if (carrier.alive) {
+          flag.x = carrier.x
+          flag.z = carrier.z
+
+          playersUpdated[carrierIndex] = {
+            ...carrier,
+            flagTime: carrier.flagTime + dt * 1000,
+          }
+        } else {
+          flag.carrierId = null
+          flag.x = carrier.x
+          flag.z = carrier.z
+        }
+      } else {
+        flag.carrierId = null
+      }
+    }
+
+    const elapsed = state.elapsed + dt * 1000
     const phase: GamePhase =
       elapsed >= state.sessionDuration ? 'ended' : 'playing'
 
     return {
       ...state,
       phase,
-      players,
+      players: playersUpdated,
       bullets,
       elapsed,
+      flag,
     }
   }
 
   return state
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useGameState({
   sessionMinutes,
   enabled,
