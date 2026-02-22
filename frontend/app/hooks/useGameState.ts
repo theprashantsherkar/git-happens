@@ -27,6 +27,7 @@ export type GameState = {
   bullets: Bullet[]
   flag: Flag
   elapsed: number
+  startedAt: number | null  // wall-clock timestamp of when the game was enabled
   sessionDuration: number
   worldSpeed: number
 }
@@ -41,6 +42,7 @@ const BINDINGS = [
 type Action =
   | { type: 'TICK'; dt: number; keys: Set<string>; enabled: boolean }
   | { type: 'START' }
+  | { type: 'ENABLE' }  // dispatched once when countdown finishes
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
@@ -103,6 +105,7 @@ function makeInitialState(sessionMinutes: number): GameState {
     bullets: [],
     flag: { x: 0, z: 0, carrierId: null },
     elapsed: 0,
+    startedAt: null,          // not started until ENABLE is dispatched
     sessionDuration: sessionMinutes * 60 * 1000,
     worldSpeed: 1,
   }
@@ -114,9 +117,16 @@ let nextBulletId = 1000
 function reducer(state: GameState, action: Action): GameState {
   if (action.type === 'START') return state
 
+  // ── POINT 4: Set startedAt to current wall-clock time, once ──
+  if (action.type === 'ENABLE') {
+    return { ...state, startedAt: Date.now() }
+  }
+
   if (action.type === 'TICK') {
     const { dt, keys, enabled } = action
-    if (!enabled || state.phase !== 'playing') return state
+
+    // ── POINT 4 (guard): Don't tick until enabled and startedAt is set ──
+    if (!enabled || state.phase !== 'playing' || state.startedAt === null) return state
 
     const now = Date.now()
     const newBullets: Bullet[] = []
@@ -283,11 +293,16 @@ function reducer(state: GameState, action: Action): GameState {
       }
     }
 
+    // ── POINT 3: elapsed and phase derived from wall-clock, not accumulated dt ──
+    const elapsed = Date.now() - state.startedAt
+    const phase: GamePhase = elapsed >= state.sessionDuration ? 'ended' : 'playing'
+
     return {
       ...state,
+      phase,
       players: playersUpdated,
       bullets,
-      elapsed: state.elapsed + dt * 1000,
+      elapsed,        // wall-clock based — never pauses when tab is hidden
       flag,
     }
   }
@@ -312,8 +327,10 @@ export function useGameState({
   const keysRef = useRef<Set<string>>(new Set())
   const lastTimeRef = useRef<number>(performance.now())
 
+  // ── POINT 4: Dispatch ENABLE once when enabled flips to true ──
   useEffect(() => {
     if (!enabled) return
+    dispatch({ type: 'ENABLE' })
     lastTimeRef.current = performance.now()
   }, [enabled])
 
