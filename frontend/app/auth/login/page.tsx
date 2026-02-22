@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
-import { useMusic } from "../../hooks/useAudio";
+// import { useMusic } from "./hooks/useAudio";
 
 interface LoginForm {
   email: string;
@@ -15,7 +15,7 @@ interface ApiResponse {
 }
 
 export default function LoginPage() {
-  useMusic("nav");
+  // useMusic("nav");
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -27,38 +27,38 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  e.preventDefault();
+  setLoading(true);
+  setError("");
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+  try {
+    const res = await fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
 
-      const data: ApiResponse = await res.json();
+    const data: ApiResponse = await res.json();
 
-      if (!res.ok) {
-        setError(data.message || "Login failed. Try again!");
-        setShake(true);
-        setTimeout(() => setShake(false), 600);
-        return;
-      }
-
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        window.location.href = "/game";
-      }
-    } catch {
-      setError("Server error. Please try again.");
+    if (!res.ok) {
+      setError(data.message || "Login failed. Try again!");
       setShake(true);
       setTimeout(() => setShake(false), 600);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      window.location.href = "/game";
+    }
+  } catch {
+    setError("Server error. Please try again.");
+    setShake(true);
+    setTimeout(() => setShake(false), 600);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>

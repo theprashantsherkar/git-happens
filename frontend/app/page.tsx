@@ -337,8 +337,8 @@ export default function LandingPage() {
           The clock is ticking — and so is everyone else's trigger finger.
         </p>
         <div className="btns">
-          <Link href="/auth/login" className="btn btn-primary">▶ LOGIN</Link>
-          <Link href="/auth/register" className="btn btn-secondary">✦ REGISTER</Link>
+          <Link href="/app/api/user-routes/login" className="btn btn-primary">▶ LOGIN</Link>
+          <Link href="/app/api/user-routes/register" className="btn btn-secondary">✦ REGISTER</Link>
         </div>
       </main>
     </>

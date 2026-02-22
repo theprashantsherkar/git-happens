@@ -17,6 +17,7 @@ export type Player = {
   kills: number
   isJumping: boolean
   jumpVelocity: number
+  speedMultiplier: number
   yPos: number
 }
 
@@ -24,7 +25,7 @@ export type Obstacle = {
   id: number
   x: number
   z: number
-  type: 'tree' | 'rock' | 'log' | 'barrel' | 'pothole' | 'animal'
+  type: 'tree' | 'rock' | 'log' | 'barrel' | 'pothole' | 'animal' | 'river'
 }
 
 export type Bullet = {

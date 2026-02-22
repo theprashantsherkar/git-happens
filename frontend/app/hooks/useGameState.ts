@@ -9,8 +9,6 @@ const TURN_SPEED = 2.2
 const BULLET_SPEED = 30
 const BULLET_LIFE = 2.5
 const FLAG_PICKUP_R = 2.5
-const HIT_RADIUS = 1.5
-const RESPAWN_DELAY = 3000
 
 const GRAVITY = -30
 const JUMP_FORCE = 12
@@ -48,6 +46,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
 }
 
+/* ============================ */
 function spawnObstacles(): Obstacle[] {
   const obs: Obstacle[] = []
   const types: Obstacle['type'][] = [
@@ -55,8 +54,7 @@ function spawnObstacles(): Obstacle[] {
     'rock','rock',
     'log',
     'barrel',
-    'pothole',
-    'animal'
+    'river',
   ]
 
   for (let i = 0; i < 120; i++) {
@@ -76,6 +74,7 @@ function spawnObstacles(): Obstacle[] {
   return obs
 }
 
+/* ============================ */
 function makeInitialState(sessionMinutes: number): GameState {
   const players: Player[] = PLAYER_COLORS.map((color, i) => ({
     id: i,
@@ -94,6 +93,7 @@ function makeInitialState(sessionMinutes: number): GameState {
     isJumping: false,
     jumpVelocity: 0,
     yPos: 0,
+    speedMultiplier: 1,
   }))
 
   return {
@@ -109,32 +109,37 @@ function makeInitialState(sessionMinutes: number): GameState {
 }
 
 let nextBulletId = 1000
-let respawnTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
+/* ============================ */
 function reducer(state: GameState, action: Action): GameState {
   if (action.type === 'START') return state
 
   if (action.type === 'TICK') {
     const { dt, keys, enabled } = action
-
-    if (!enabled) return state
-    if (state.phase !== 'playing') return state
+    if (!enabled || state.phase !== 'playing') return state
 
     const now = Date.now()
     const newBullets: Bullet[] = []
 
+    /* ============================
+       PLAYER UPDATE
+    ============================ */
     const players = state.players.map((p, i) => {
       if (!p.alive) return p
       const b = BINDINGS[i]
       if (!b) return p
 
       let angle = p.angle
-
       if (keys.has(b.left)) angle += TURN_SPEED * dt
       if (keys.has(b.right)) angle -= TURN_SPEED * dt
 
+      const prevX = p.x
+      const prevZ = p.z
+
       let x = p.x
       let z = p.z
+
+      let speedMultiplier = 1
 
       if (keys.has(b.forward)) {
         x += Math.sin(angle) * MOVE_SPEED * dt
@@ -144,7 +149,7 @@ function reducer(state: GameState, action: Action): GameState {
       x = clamp(x, -WORLD_SIZE, WORLD_SIZE)
       z = clamp(z, -WORLD_SIZE, WORLD_SIZE)
 
-      // 🔥 JUMP LOGIC
+      /* ---- Jump ---- */
       let yPos = p.yPos
       let jumpVelocity = p.jumpVelocity
       let isJumping = p.isJumping
@@ -157,7 +162,6 @@ function reducer(state: GameState, action: Action): GameState {
       if (isJumping) {
         jumpVelocity += GRAVITY * dt
         yPos += jumpVelocity * dt
-
         if (yPos <= 0) {
           yPos = 0
           jumpVelocity = 0
@@ -165,7 +169,30 @@ function reducer(state: GameState, action: Action): GameState {
         }
       }
 
-      // Shooting still works
+      /* ---- Obstacles ---- */
+      for (const obs of state.obstacles) {
+        const dx = x - obs.x
+        const dz = z - obs.z
+        const dist = Math.sqrt(dx * dx + dz * dz)
+
+        if (obs.type === 'river' && dist < 3) {
+          speedMultiplier = 0.4
+        }
+
+        if (
+          (obs.type === 'tree' ||
+           obs.type === 'rock' ||
+           obs.type === 'log' ||
+           obs.type === 'barrel') &&
+          dist < 1.8 &&
+          yPos < 1
+        ) {
+          x = prevX
+          z = prevZ
+        }
+      }
+
+      /* ---- Shooting ---- */
       if (b.shoot && keys.has(b.shoot)) {
         const lastShot = (p as any)._lastShot ?? 0
         if (now - lastShot > 350) {
@@ -189,9 +216,13 @@ function reducer(state: GameState, action: Action): GameState {
         yPos,
         jumpVelocity,
         isJumping,
+        speedMultiplier,
       }
     })
 
+    /* ============================
+       BULLETS
+    ============================ */
     const bullets = [
       ...state.bullets
         .map(b => ({
@@ -204,7 +235,9 @@ function reducer(state: GameState, action: Action): GameState {
       ...newBullets,
     ]
 
-    // ✅ FLAG LOGIC (unchanged)
+    /* ============================
+       FLAG LOGIC 
+    ============================ */
     let flag = { ...state.flag }
     let playersUpdated = [...players]
 
@@ -227,9 +260,7 @@ function reducer(state: GameState, action: Action): GameState {
         }
       }
     } else {
-      const carrierIndex = playersUpdated.findIndex(
-        p => p.id === flag.carrierId
-      )
+      const carrierIndex = playersUpdated.findIndex(p => p.id === flag.carrierId)
 
       if (carrierIndex !== -1) {
         const carrier = playersUpdated[carrierIndex]
@@ -252,16 +283,11 @@ function reducer(state: GameState, action: Action): GameState {
       }
     }
 
-    const elapsed = state.elapsed + dt * 1000
-    const phase: GamePhase =
-      elapsed >= state.sessionDuration ? 'ended' : 'playing'
-
     return {
       ...state,
-      phase,
       players: playersUpdated,
       bullets,
-      elapsed,
+      elapsed: state.elapsed + dt * 1000,
       flag,
     }
   }
@@ -269,6 +295,7 @@ function reducer(state: GameState, action: Action): GameState {
   return state
 }
 
+/* ============================ */
 export function useGameState({
   sessionMinutes,
   enabled,
@@ -303,7 +330,6 @@ export function useGameState({
 
   useEffect(() => {
     let raf: number
-
     function loop(now: number) {
       const dt = Math.min((now - lastTimeRef.current) / 1000, 0.05)
       lastTimeRef.current = now
@@ -319,12 +345,7 @@ export function useGameState({
     }
 
     raf = requestAnimationFrame(loop)
-
-    return () => {
-      cancelAnimationFrame(raf)
-      respawnTimers.forEach(t => clearTimeout(t))
-      respawnTimers.clear()
-    }
+    return () => cancelAnimationFrame(raf)
   }, [enabled])
 
   return { state }
