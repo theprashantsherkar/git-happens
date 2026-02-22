@@ -1,30 +1,25 @@
 'use client'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { useMemo, useRef } from 'react'
+import * as THREE from 'three'
 import { GameState } from '../hooks/useGameState'
 import { SceneLighting } from './SceneLighting'
 import { Track } from './Track'
-import { PlayerMesh } from './PlayerMesh'
-import { BulletMesh } from './BulletMesh'
 import { ObstacleMesh } from './ObstacleMesh'
 import { CameraRig } from './CameraRig'
-import * as THREE from 'three'
-import { useThree, useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { PlayerMesh, BulletMesh } from './PlayerMesh'
 
 // ─── Flag mesh in world ───────────────────────────────────────────────────────
 function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: number | null }) {
   const poleRef = useRef<THREE.Mesh>(null)
 
   useFrame(({ clock }) => {
-    if (poleRef.current) {
-      // Gentle bobbing when on ground (not held)
-      if (carrierId === null) {
-        poleRef.current.position.y = Math.sin(clock.elapsedTime * 2) * 0.15 + 0.8
-      }
+    if (poleRef.current && carrierId === null) {
+      poleRef.current.position.y = Math.sin(clock.elapsedTime * 2) * 0.15 + 0.8
     }
   })
 
-  // Don't render flag separately when it's being carried — PlayerMesh shows the pole
+  // Don't render flag separately when carried — PlayerMesh shows it on the carrier's back
   if (carrierId !== null) return null
 
   return (
@@ -48,28 +43,21 @@ function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: numb
   )
 }
 
-type Props = { state: GameState }
-
-
+// ─── Sky + Clouds ─────────────────────────────────────────────────────────────
 function SkyAndClouds() {
   const cloudGroup = useRef<THREE.Group>(null)
 
-  // Strong blue sky gradient
   const skyTexture = useMemo(() => {
     const canvas = document.createElement('canvas')
     canvas.width = 1024
     canvas.height = 1024
     const ctx = canvas.getContext('2d')!
-
     const gradient = ctx.createLinearGradient(0, 0, 0, 1024)
-
-    gradient.addColorStop(0, '#0f4fff')   // deep sky blue (top)
-    gradient.addColorStop(0.5, '#1e90ff') // bright mid blue
-    gradient.addColorStop(1, '#87ceeb')   // light horizon blue
-
+    gradient.addColorStop(0,   '#0f4fff')
+    gradient.addColorStop(0.5, '#1e90ff')
+    gradient.addColorStop(1,   '#87ceeb')
     ctx.fillStyle = gradient
     ctx.fillRect(0, 0, 1024, 1024)
-
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
     return texture
@@ -99,13 +87,10 @@ function SkyAndClouds() {
       {/* Sky dome */}
       <mesh>
         <sphereGeometry args={[300, 64, 64]} />
-        <meshBasicMaterial
-          map={skyTexture}
-          side={THREE.BackSide}
-        />
+        <meshBasicMaterial map={skyTexture} side={THREE.BackSide} />
       </mesh>
 
-      {/* Soft clouds */}
+      {/* Drifting clouds */}
       <group ref={cloudGroup}>
         {clouds.map((c, i) => (
           <group key={i} position={[c.x, c.y, c.z]} scale={c.scale}>
@@ -128,7 +113,8 @@ function SkyAndClouds() {
   )
 }
 
-export default SkyAndClouds
+// ─── Main scene export ────────────────────────────────────────────────────────
+type Props = { state: GameState }
 
 export function GameScene({ state }: Props) {
   return (
@@ -142,21 +128,23 @@ export function GameScene({ state }: Props) {
       <SkyAndClouds />
       <Track />
 
-      {/* Flag in world */}
-      <FlagObject x={state.flag.x} z={state.flag.z} carrierId={state.flag.carrierId} />
+      {/* Flag — only visible when not being carried */}
+      <FlagObject
+        x={state.flag.x}
+        z={state.flag.z}
+        carrierId={state.flag.carrierId}
+      />
 
-      {/* Players */}
-      {state.players.map(p => (
-        <PlayerMesh key={p.id} player={p} />
-      ))}
+      {/* All players — PlayerMesh handles the full array internally */}
+      <PlayerMesh players={state.players} />
 
       {/* Bullets */}
-      <BulletMesh bullets={state.bullets} players={state.players} />
+      <BulletMesh bullets={state.bullets} />
 
       {/* Obstacles */}
       <ObstacleMesh obstacles={state.obstacles} />
 
-      {/* Camera follows Blue player */}
+      {/* Camera follows player 0 (Blue) */}
       <CameraRig players={state.players} />
     </Canvas>
   )

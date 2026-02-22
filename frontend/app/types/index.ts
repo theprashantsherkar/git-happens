@@ -4,15 +4,16 @@ export type Player = {
   id: number
   name: string
   color: string
-  // Free-roam world position
-  x: number            // world X
-  z: number            // world Z
-  angle: number        // facing direction in radians (Y-axis rotation)
-  vx: number           // velocity X (for smooth movement)
-  vz: number           // velocity Z
+  hasGun: boolean 
+  x: number            
+  z: number           
+  angle: number      
+  vx: number           
+  vz: number           
   alive: boolean
   role: PlayerRole
-  flagTime: number     // ms holding flag
+  flagTime: number     
+  lastShotAt: number 
   flagHoldStart: number | null
   kills: number
   isJumping: boolean
