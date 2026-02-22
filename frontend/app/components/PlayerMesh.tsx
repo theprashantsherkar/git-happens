@@ -27,8 +27,12 @@ const _pennantGeo = new THREE.ConeGeometry(0.28, 0.55, 3)  // triangular flag
 const _shadowGeo = new THREE.CircleGeometry(0.55, 16)
 const _shadowMat = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.18 })
 
-/* ── aim reticle — canvas texture with circle + X, created once ── */
-const _reticleTexture = (() => {
+/* ── aim reticle texture — created lazily on first client render ── */
+let _reticleTexture: THREE.CanvasTexture | null = null
+
+function getReticleTexture(): THREE.CanvasTexture {
+  if (_reticleTexture) return _reticleTexture
+
   const size = 128
   const canvas = document.createElement('canvas')
   canvas.width = size
@@ -57,27 +61,21 @@ const _reticleTexture = (() => {
   ctx.beginPath(); ctx.moveTo(cx - arm, cy - arm); ctx.lineTo(cx + arm, cy + arm); ctx.stroke()
   ctx.beginPath(); ctx.moveTo(cx + arm, cy - arm); ctx.lineTo(cx - arm, cy + arm); ctx.stroke()
 
-  // gap ticks at cardinal points (makes it look like a real crosshair)
+  // cardinal tick marks
   const tickOuter = r + 10, tickInner = r + 2
-  ;[[0,-1],[0,1],[1,0],[-1,0]].forEach(([dx, dy]) => {
+  ;([[0,-1],[0,1],[1,0],[-1,0]] as [number,number][]).forEach(([dx, dy]) => {
     ctx.beginPath()
     ctx.moveTo(cx + dx * tickInner, cy + dy * tickInner)
     ctx.lineTo(cx + dx * tickOuter, cy + dy * tickOuter)
     ctx.stroke()
   })
 
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.needsUpdate = true
-  return tex
-})()
+  _reticleTexture = new THREE.CanvasTexture(canvas)
+  _reticleTexture.needsUpdate = true
+  return _reticleTexture
+}
 
 const _reticleGeo = new THREE.PlaneGeometry(2.2, 2.2)
-const _reticleMat = new THREE.MeshBasicMaterial({
-  map: _reticleTexture,
-  transparent: true,
-  depthWrite: false,
-  side: THREE.DoubleSide,
-})
 
 /* ── single player ── */
 function SinglePlayer({ player }: { player: Player }) {
@@ -161,13 +159,17 @@ function SinglePlayer({ player }: { player: Player }) {
       {/* ── AIM RETICLE — floats in front of chasers at gun height ── */}
       {!isCarrier && (
         <mesh
-          // 5 units ahead along the player's forward axis (local Z+)
           position={[0, 1.1, 5]}
-          // flat, facing up toward camera (rotate so plane faces forward)
           rotation={[-Math.PI / 2, 0, 0]}
           geometry={_reticleGeo}
-          material={_reticleMat}
-        />
+        >
+          <meshBasicMaterial
+            map={getReticleTexture()}
+            transparent
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
       )}
 
       {/* ── FLAG POLE + PENNANT (carrier only) ── */}
