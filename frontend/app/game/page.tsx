@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useGameState } from "../hooks/useGameState";
 import { GameScene } from "../components/GameScene";
 import { HUD } from "../components/HUD";
+import { EndScreen } from "../components/EndScreen";
 
 // ─── Flag Countdown ───────────────────────────────────────────────────────────
 function FlagCountdown({ onDone }: { onDone: () => void }) {
@@ -55,51 +56,6 @@ function FlagCountdown({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ─── End Modal ───────────────────────────────────────────────────────────────
-function EndModal({
-  players,
-  onPlayAgain,
-  onHome,
-}: {
-  players: any[];
-  onPlayAgain: () => void;
-  onHome: () => void;
-}) {
-  const sorted = [...players].sort((a, b) => b.flagTime - a.flagTime);
-  const winner = sorted[0];
-
-  if (!winner) return null;
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.9)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexDirection: "column",
-        color: "white",
-        zIndex: 100
-      }}
-    >
-      <h1 style={{ color: winner.color }}>
-        {winner.name} WINS 🚩
-      </h1>
-
-      <p>Held flag for {Math.floor(winner.flagTime / 1000)}s</p>
-
-      <div style={{ marginTop: 20 }}>
-        <button onClick={onPlayAgain} style={{ marginRight: 10 }}>
-          Play Again
-        </button>
-        <button onClick={onHome}>Home</button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Active Game ──────────────────────────────────────────────────────────────
 function ActiveGame({
   sessionMinutes,
@@ -121,11 +77,10 @@ function ActiveGame({
     return (
       <>
         <div style={{ width: "100vw", height: "100vh", background: "#0d0221" }} />
-        <EndModal
+        <EndScreen
           players={state.players}
-          onPlayAgain={onRestart}
-          onHome={() => router.push("/home")}
-        />
+          onRestart={onRestart}
+          />
       </>
     );
   }
