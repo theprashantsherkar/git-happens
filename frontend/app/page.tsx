@@ -174,6 +174,8 @@
 import Link from "next/link";
 import { useMusic } from "./hooks/useAudio";
 
+export const BACKEND_URI = "http://localhost:5000/";
+
 export default function LandingPage() {
   useMusic("nav");
   return (
@@ -337,8 +339,8 @@ export default function LandingPage() {
           The clock is ticking — and so is everyone else's trigger finger.
         </p>
         <div className="btns">
-          <Link href="/app/api/user-routes/login" className="btn btn-primary">▶ LOGIN</Link>
-          <Link href="/app/api/user-routes/register" className="btn btn-secondary">✦ REGISTER</Link>
+          <Link href="/auth/login" className="btn btn-primary">▶ LOGIN</Link>
+          <Link href="/auth/register" className="btn btn-secondary">✦ REGISTER</Link>
         </div>
       </main>
     </>

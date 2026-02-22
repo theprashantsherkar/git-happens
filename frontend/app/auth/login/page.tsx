@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { BACKEND_URI } from "@/app/page";
+import axios from "axios";
 import Link from "next/link";
 // import { useMusic } from "./hooks/useAudio";
 
@@ -32,26 +34,30 @@ export default function LoginPage() {
   setError("");
 
   try {
-    const res = await fetch("http://localhost:5000/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const res = await axios.post(`${BACKEND_URI}app/api/user-routes/login`, {
+      email: form.email,
+      password:form.password
+    }, {
+      headers: {
+        "Content-Type":"application/json"
+      },
+      withCredentials:true
+    })
 
-    const data: ApiResponse = await res.json();
+    
 
-    if (!res.ok) {
-      setError(data.message || "Login failed. Try again!");
+    if (!res.data.success) {
+      setError(res.data.message || "Login failed. Try again!");
       setShake(true);
       setTimeout(() => setShake(false), 600);
       return;
     }
 
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-      window.location.href = "/game";
+    if (res.data.token) {
+      localStorage.setItem("token", res.data.token);
+      window.location.href = "/home";
     }
-  } catch {
+  } catch (err:any) {
     setError("Server error. Please try again.");
     setShake(true);
     setTimeout(() => setShake(false), 600);
