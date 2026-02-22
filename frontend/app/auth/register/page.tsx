@@ -2025,17 +2025,15 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import axios from 'axios';
+import { BACKEND_URI } from "@/app/page";
+// import { useMusic } from "./hooks/useAudio";
 
 interface RegisterForm {
   username: string;
   email: string;
   password: string;
   confirmPassword: string;
-}
-
-interface ApiResponse {
-  token?: string;
-  message?: string;
 }
 
 type PasswordStrength = "weak" | "medium" | "strong" | "";
@@ -2054,7 +2052,8 @@ function getPasswordStrength(password: string): PasswordStrength {
 }
 
 export default function RegisterPage() {
-  const [form, setForm] = useState<RegisterForm>({
+    // useMusic("nav");
+    const [form, setForm] = useState<RegisterForm>({
     username: "",
     email: "",
     password: "",
@@ -2093,13 +2092,18 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.username, email: form.email, password: form.password }),
+      const res = await axios.post(`${BACKEND_URI}app/api/user-routes/register`, {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+      }, {
+        headers: {
+          "Content-Type": "application/json"
+        },
+        withCredentials: true
       });
-      const data: ApiResponse = await res.json();
-      if (!res.ok) {
+      const data = await res.data;
+      if (!data.success) {
         setError(data.message || "Registration failed. Try again!");
         setShake(true);
         setTimeout(() => setShake(false), 600);
@@ -2108,7 +2112,7 @@ export default function RegisterPage() {
       if (data.token) {
         localStorage.setItem("token", data.token);
         setSuccess(true);
-        setTimeout(() => { window.location.href = "/game"; }, 2000);
+        setTimeout(() => { window.location.href = "/home"; }, 2000);
       }
     } catch {
       setError("Server error. Please try again.");
@@ -3050,3 +3054,4 @@ export default function RegisterPage() {
     </>
   );
 }
+

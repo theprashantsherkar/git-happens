@@ -1,6 +1,10 @@
+
 "use client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useMusic } from "../hooks/useAudio";
+import axios from "axios";
+import { BACKEND_URI } from "../page";
 
 const MOCK_PROFILE = { username: "ShadowFlag", email: "shadow@flagzilla.gg", wins: 38, losses: 12, totalHoldMs: 4320000, rank: 1 };
 
@@ -27,9 +31,20 @@ function fmtHold(ms: number) {
 }
 
 export default function HomePage() {
+  useMusic("nav");
   const router = useRouter();
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  
+  const handleLogout = async () => {
+    const { data } = await axios.get(`${BACKEND_URI}app/api/user-routes/logout`, {
+      headers: {
+        "Content-Type":"application/json"
+      },
+      withCredentials:true
+    })
+    if (data.success) {
+      localStorage.removeItem("token");
+      console.log("Logged out successfully")
+    }
     router.push("/");
   };
 

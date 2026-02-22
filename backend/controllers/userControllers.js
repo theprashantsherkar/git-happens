@@ -37,7 +37,7 @@ export async function landingAPI(req, res) {
 
 export async function registerUserController(req, res) {
     try {
-        const { username, email, role, password } = req.body;
+        const { username, email, password } = req.body;
 
         // Fix: was using bitwise | instead of logical ||
         if (!username || !email || !password) {
@@ -59,12 +59,10 @@ export async function registerUserController(req, res) {
 
         const hashedPass = await bcrypt.hash(password, 10);
 
-        // Fix: was saving 'name' instead of 'username', and not saving 'role'
         const newUser = await User.create({
             username,
             email,
             password: hashedPass,
-            role: role || 'user',
         });
 
         return sendToken(newUser, 201, res, 'User registered successfully');

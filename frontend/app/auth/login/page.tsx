@@ -759,7 +759,10 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { BACKEND_URI } from "@/app/page";
+import axios from "axios";
 import Link from "next/link";
+// import { useMusic } from "./hooks/useAudio";
 
 interface LoginForm {
   email: string;
@@ -772,6 +775,7 @@ interface ApiResponse {
 }
 
 export default function LoginPage() {
+  // useMusic("nav");
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -783,34 +787,42 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data: ApiResponse = await res.json();
-      if (!res.ok) {
-        setError(data.message || "Login failed. Try again!");
-        setShake(true);
-        setTimeout(() => setShake(false), 600);
-        return;
-      }
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        window.location.href = "/game";
-      }
-    } catch {
-      setError("Server error. Please try again.");
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  try {
+    const res = await axios.post(`${BACKEND_URI}app/api/user-routes/login`, {
+      email: form.email,
+      password:form.password
+    }, {
+      headers: {
+        "Content-Type":"application/json"
+      },
+      withCredentials:true
+    })
+
+    
+
+    if (!res.data.success) {
+      setError(res.data.message || "Login failed. Try again!");
       setShake(true);
       setTimeout(() => setShake(false), 600);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    if (res.data.token) {
+      localStorage.setItem("token", res.data.token);
+      window.location.href = "/home";
+    }
+  } catch (err:any) {
+    setError("Server error. Please try again.");
+    setShake(true);
+    setTimeout(() => setShake(false), 600);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>

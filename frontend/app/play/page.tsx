@@ -2,10 +2,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useMusic } from "../hooks/useAudio";
 
 const SESSION_OPTIONS = [2, 5, 10, 20] as const;
 
 export default function PlayPage() {
+  useMusic("nav");
   const router = useRouter();
   const [selected, setSelected] = useState<number>(5);
   const [roomCode, setRoomCode] = useState("");
