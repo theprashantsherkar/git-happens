@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMusic } from "../hooks/useAudio";
+import axios from "axios";
+import { BACKEND_URI } from "../page";
 
 const SESSION_OPTIONS = [2, 5, 10, 20] as const;
 
@@ -33,6 +35,20 @@ export default function PlayPage() {
   const handleStartRoom = () => {
     router.push(`/game?duration=${selected}&room=${roomCode}`);
   };
+
+  const logoutHandler = async() => {
+    const { data } = await axios.get(`${BACKEND_URI}app/api/user-routes/logout`, {
+      headers: {
+        "Content-Type":"application/json",
+      },
+      withCredentials:true
+    })
+
+    if (data.success) {
+      localStorage.removeItem("token");
+      router.push("/");
+    }
+  }
 
   return (
     <>
@@ -142,7 +158,7 @@ export default function PlayPage() {
           <Link href="/" className="nav-logo">FLAGZiLLA</Link>
           <div style={{ display:"flex", gap:10 }}>
             <Link href="/home" className="nav-link">HOME</Link>
-            <Link href="/auth/login" className="nav-link">LOGIN</Link>
+            <Link href="/" className="nav-link" onClick={logoutHandler}>LOG OUT</Link>
           </div>
         </nav>
 

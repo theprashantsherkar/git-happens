@@ -1,7 +1,6 @@
-import { GAME_TICK, GAME_DURATION } from "../constant.js"
+import { GAME_TICK } from "../constant.js"
 import { isColliding } from "../collisions/collisions.js"
 import { handleKill, handleFlagPickup } from "../engine.js"
-import { User } from "../../models/userModels.js"
 
 export function startGameLoop(io, roomId, room) {
 
@@ -10,9 +9,10 @@ export function startGameLoop(io, roomId, room) {
     room.interval = setInterval(() => {
 
         const now = Date.now()
-        const players = Object.values(room.players)
+        const gameDuration = room.gameDuration || 300000  // Fix: use room-specific duration
+        const playersArray = Object.values(room.players)
 
-        // ✅ Possession Timer
+        // ─── Possession Timer ─────────────────────────────────────────────────────
         if (room.flag.holderId) {
             const holder = room.players[room.flag.holderId]
             if (holder && holder.isAlive) {
@@ -20,12 +20,11 @@ export function startGameLoop(io, roomId, room) {
             }
         }
 
-        // ✅ Collision checks
-        for (let i = 0; i < players.length; i++) {
-            for (let j = i + 1; j < players.length; j++) {
-
-                const p1 = players[i]
-                const p2 = players[j]
+        // ─── Collisions + Flag ────────────────────────────────────────────────────
+        for (let i = 0; i < playersArray.length; i++) {
+            for (let j = i + 1; j < playersArray.length; j++) {
+                const p1 = playersArray[i]
+                const p2 = playersArray[j]
 
                 if (!p1.isAlive || !p2.isAlive) continue
 
@@ -38,57 +37,65 @@ export function startGameLoop(io, roomId, room) {
                 }
             }
 
-            // ✅ Flag pickup
-            if (!room.flag.holderId && isColliding(players[i], room.flag)) {
-                handleFlagPickup(io, roomId, room, players[i])
+            // Flag pickup
+            if (!room.flag.holderId && isColliding(playersArray[i], room.flag)) {
+                handleFlagPickup(io, roomId, room, playersArray[i])
             }
         }
 
-        const leaderboard = buildLocalLeaderboard(room)
-        io.to(roomId).emit("leaderboard_update", leaderboard)
-        // ✅ Emit updated state
-        io.to(roomId).emit("room_state", room)
+        // ─── Build Safe Player State ──────────────────────────────────────────────
+        const safePlayers = playersArray.map(p => ({
+            id: p.id,
+            name: p.username,
+            color: p.color,
+            x: p.x,
+            z: p.z,               // Fix: was sending y, GameScene reads z
+            yPos: p.yPos || 0,
+            angle: p.angle || 0,
+            alive: p.isAlive,
+            role: room.flag.holderId === p.id ? "carrier" : null,
+            flagTime: p.possessionTime || 0,
+            kills: p.kills || 0
+        }))
 
-        // 🔥 THIS IS THE LINE YOU ARE ASKING ABOUT
-        if (now - room.gameStartTime >= GAME_DURATION) {
+        // ─── Emit State ───────────────────────────────────────────────────────────
+        io.to(roomId).emit("room_state", {
+            players: safePlayers,
+            flag: {
+                x: room.flag.x,
+                z: room.flag.z,                    // Fix: use z not y
+                carrierId: room.flag.holderId || null  // Fix: carrierId not holderId
+            },
+            bullets: room.bullets || [],
+            obstacles: room.obstacles || [],
+            elapsed: now - room.gameStartTime,
+            Duration: gameDuration,                // Fix: capital D — matches what HUD reads
+            worldSpeed: room.worldSpeed || 1
+        })
+
+        // ─── End Match ────────────────────────────────────────────────────────────
+        if (now - room.gameStartTime >= gameDuration) {
             clearInterval(room.interval)
-            finalizeMatch(room)
-            io.to(roomId).emit("game_over", room)
+
+            const winner = determineWinner(room)
+
+            io.to(roomId).emit("game_over", {
+                winner: {
+                    id: winner.id,
+                    name: winner.username,
+                    color: winner.color,
+                    aggregate_possession_time: winner.possessionTime
+                }
+            })
         }
 
     }, GAME_TICK)
 }
 
-
-
-export async function finalizeMatch(room) {
-
+export function determineWinner(room) {
     const players = Object.values(room.players)
-
-    // 🏆 Determine winner by possession time
-    const winner = players.reduce((prev, curr) =>
+    return players.reduce((prev, curr) =>
         curr.possessionTime > prev.possessionTime ? curr : prev
     )
-
-    for (const player of players) {
-        const user = await User.findById(player.userId)
-        if (!user) continue
-
-        user.totalKills += player.kills || 0
-        user.totalPossessionTime += player.possessionTime
-        user.totalWins += player.userId === winner.userId ? 1 : 0
-
-        await user.save()
-    }
 }
-
-
-function buildLocalLeaderboard(room) {
-    return Object.values(room.players)
-        .map(player => ({
-            username: player.username,
-            possessionTime: player.possessionTime,
-            kills: player.kills
-        }))
-        .sort((a, b) => b.possessionTime - a.possessionTime)
-}
+function buildLocalLeaderboard(room) { return Object.values(room.players).map(player => ({ username: player.username, possessionTime: player.possessionTime, kills: player.kills })).sort((a, b) => b.possessionTime - a.possessionTime) }

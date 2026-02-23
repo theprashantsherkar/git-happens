@@ -115,8 +115,10 @@ function SkyAndClouds() {
 
 // ─── Main scene export ────────────────────────────────────────────────────────
 type Props = { state: GameState }
-
 export function GameScene({ state }: Props) {
+
+  // 🛑 Hard guard
+  console.log("GameScene state:", state)
   return (
     <Canvas
       shadows
@@ -128,24 +130,24 @@ export function GameScene({ state }: Props) {
       <SkyAndClouds />
       <Track />
 
-      {/* Flag — only visible when not being carried */}
+      {/* Flag */}
       <FlagObject
-        x={state.flag.x}
-        z={state.flag.z}
-        carrierId={state.flag.carrierId}
+        x={state.flag?.x ?? 0}
+        z={state.flag?.z ?? 0}
+        carrierId={state.flag?.carrierId ?? null}
       />
 
-      {/* All players — PlayerMesh handles the full array internally */}
-      <PlayerMesh players={state.players} />
+      {/* Players */}
+      <PlayerMesh players={state.players ?? []} />
 
       {/* Bullets */}
-      <BulletMesh bullets={state.bullets} />
+      <BulletMesh bullets={state.bullets ?? []} />
 
       {/* Obstacles */}
-      <ObstacleMesh obstacles={state.obstacles} />
+      <ObstacleMesh obstacles={state.obstacles ?? []} />
 
-      {/* Camera follows player 0 (Blue) */}
-      <CameraRig players={state.players} />
+      {/* Camera */}
+      <CameraRig players={state.players ?? []} />
     </Canvas>
   )
 }
