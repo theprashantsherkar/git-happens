@@ -2,37 +2,32 @@
 import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { Player } from '../types'
+import { ServerPlayer } from '../hooks/useGameState'
 
-type Props = { players: Player[] }
+type Props = { player: ServerPlayer | null }
 
-// Camera sits behind + above player 0 (Blue), following their angle
-const CAM_BACK   = 10   // units behind player
-const CAM_HEIGHT = 7    // units above player
-const CAM_LERP   = 0.06 // smoothing (lower = smoother)
+const CAM_BACK   = 10
+const CAM_HEIGHT = 7
+const CAM_LERP   = 0.06
 
-export function CameraRig({ players }: Props) {
+export function CameraRig({ player }: Props) {
   const { camera } = useThree()
-  const targetPos = useRef(new THREE.Vector3(0, CAM_HEIGHT, CAM_BACK))
+  const targetPos  = useRef(new THREE.Vector3(0, CAM_HEIGHT, CAM_BACK))
   const targetLook = useRef(new THREE.Vector3(0, 0, 0))
 
   useFrame(() => {
-    // Follow player 0 (local player is always Blue for local play)
-    // TODO: in multiplayer, follow the actual local player
-    const local = players.find(p => p.alive) ?? players[0]
-    if (!local) return
+    if (!player) return
 
-    // Desired camera position: behind the player in the direction they face
-    const behindX = local.x - Math.sin(local.angle) * CAM_BACK
-    const behindZ = local.z - Math.cos(local.angle) * CAM_BACK
+    // server: x/y are the horizontal axes → map y→z in Three.js
+    const angle  = player.angle ?? 0
+    const behindX = player.x - Math.sin(angle) * CAM_BACK
+    const behindZ = player.y - Math.cos(angle) * CAM_BACK   // server y → three z
 
     targetPos.current.set(behindX, CAM_HEIGHT, behindZ)
-    targetLook.current.set(local.x, 1.0, local.z)
+    targetLook.current.set(player.x, 1.0, player.y)
 
-    // Smooth camera movement
     camera.position.lerp(targetPos.current, CAM_LERP)
 
-    // Smooth look-at
     const currentLook = new THREE.Vector3()
     camera.getWorldDirection(currentLook)
     const desiredDir = new THREE.Vector3(

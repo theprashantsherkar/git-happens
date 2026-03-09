@@ -1,11 +1,15 @@
 'use client'
-import { Player } from '../types'
 import { useRouter } from 'next/navigation'
+import { ServerPlayer } from '../hooks/useGameState'
 
 type Props = {
-  players: Player[]
-  onRestart: () => void
+  players: ServerPlayer[]
+  myPlayerId: string | null
+  onRestart?: () => void
 }
+
+const SLOT_COLORS  = ['#3B82F6', '#EF4444', '#22C55E', '#EAB308']
+const MEDALS       = ['🥇', '🥈', '🥉', '4️⃣']
 
 function fmtMs(ms: number) {
   const s = Math.floor(ms / 1000)
@@ -13,173 +17,107 @@ function fmtMs(ms: number) {
   return `${m}:${(s % 60).toString().padStart(2, '0')}`
 }
 
-const MEDALS = ['🥇', '🥈', '🥉', '4️⃣']
+export function EndScreen({ players, myPlayerId, onRestart }: Props) {
+  const router  = useRouter()
+  const sorted  = [...players].sort((a, b) => b.possessionTime - a.possessionTime)
+  const winner  = sorted[0]
 
-export function EndScreen({ players, onRestart }: Props) {
-  const router = useRouter()
+  if (!winner) return null
 
-  if (!players || players.length === 0) return null
-
-  const sorted = [...players].sort((a, b) => b.flagTime - a.flagTime)
-  const winner = sorted[0]
+  const winnerColor = SLOT_COLORS[winner.playerIndex ?? 0]
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background:
-          'radial-gradient(ellipse at 50% 30%, #1a0a00 0%, #050505 100%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: '"Courier New", monospace',
-        userSelect: 'none',
-      }}
-    >
-      {/* Header */}
-      <div style={{ fontSize: 13, letterSpacing: 8, color: '#FFFFFF33', marginBottom: 8 }}>
-        GAME OVER
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(0,0,0,0.93)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexDirection: 'column', zIndex: 100,
+      fontFamily: "'Press Start 2P', monospace",
+    }}>
+      {/* Winner banner */}
+      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+        <div style={{ fontSize: 11, color: '#556688', letterSpacing: 3, marginBottom: 12 }}>
+          GAME OVER
+        </div>
+        <div style={{ fontSize: 22, color: winnerColor, textShadow: `0 0 20px ${winnerColor}` }}>
+          🏆 {winner.username} WINS!
+        </div>
+        <div style={{ fontSize: 10, color: '#7799bb', marginTop: 10 }}>
+          Held flag for {fmtMs(winner.possessionTime)}
+        </div>
       </div>
 
-      <div
-        style={{
-          fontSize: 56,
-          fontWeight: 'bold',
-          letterSpacing: 4,
-          color: winner.color,
-          textShadow: `0 0 40px ${winner.color}88`,
-          marginBottom: 6,
-        }}
-      >
-        {winner.name} WINS
-      </div>
-
-      <div style={{ fontSize: 14, color: '#FFFFFF44', letterSpacing: 2, marginBottom: 36 }}>
-        🚩 held flag for {fmtMs(winner.flagTime)}
-      </div>
-
-      {/* Leaderboard */}
-      <div
-        style={{
-          background: 'rgba(0,0,0,0.65)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 14,
-          padding: '20px 32px',
-          minWidth: 320,
-          marginBottom: 36,
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        <div style={{ color: '#FFD700', fontSize: 11, letterSpacing: 4, marginBottom: 16, textAlign: 'center' }}>
-          FINAL STANDINGS
+      {/* Scoreboard */}
+      <div style={{
+        background: 'rgba(10,5,30,0.9)',
+        border: '2px solid rgba(0,245,255,0.2)',
+        padding: '20px 32px',
+        minWidth: 420,
+        marginBottom: 32,
+      }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: '32px 1fr 80px 60px',
+          gap: 8, marginBottom: 12,
+          fontSize: 7, color: '#334466', letterSpacing: 2,
+          borderBottom: '1px solid rgba(0,245,255,0.1)', paddingBottom: 8,
+        }}>
+          <span>#</span><span>PLAYER</span><span style={{ textAlign: 'right' }}>HOLD</span><span style={{ textAlign: 'right' }}>KILLS</span>
         </div>
 
-        {sorted.map((p, i) => (
-          <div
-            key={p.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 8px',
-              marginBottom: 4,
-              borderRadius: 7,
-              background: i === 0 ? `${p.color}18` : 'transparent',
-              border: i === 0 ? `1px solid ${p.color}44` : '1px solid transparent',
-            }}
-          >
-            <span style={{ fontSize: 20, width: 28 }}>{MEDALS[i] ?? ''}</span>
-
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                background: p.color,
-                boxShadow: i === 0 ? `0 0 10px ${p.color}` : 'none',
-                flexShrink: 0,
-              }}
-            />
-
-            <span
-              style={{
-                flex: 1,
-                fontSize: 15,
-                fontWeight: i === 0 ? 'bold' : 'normal',
-                color: i === 0 ? p.color : '#ffffffcc',
-              }}
-            >
-              {p.name}
-            </span>
-
-            <span style={{ color: '#FFFFFF66', fontSize: 12, marginRight: 4 }}>
-              {p.kills} kills
-            </span>
-
-            <span
-              style={{
-                color: i === 0 ? '#FFD700' : '#FFFFFF77',
-                fontSize: 15,
-                fontWeight: 'bold',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {fmtMs(p.flagTime)}
-            </span>
-          </div>
-        ))}
+        {sorted.map((p, i) => {
+          const color  = SLOT_COLORS[p.playerIndex ?? i]
+          const isMe   = p.id === myPlayerId
+          return (
+            <div key={p.id} style={{
+              display: 'grid', gridTemplateColumns: '32px 1fr 80px 60px',
+              gap: 8, alignItems: 'center',
+              padding: '8px 0',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+              background: isMe ? 'rgba(0,245,255,0.05)' : 'transparent',
+            }}>
+              <span style={{ fontSize: 14 }}>{MEDALS[i]}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'inline-block', boxShadow: i === 0 ? `0 0 8px ${color}` : 'none' }} />
+                <span style={{ fontSize: 11, color: isMe ? '#00f5ff' : i === 0 ? color : '#aac4dd' }}>
+                  {p.username}{isMe ? ' (YOU)' : ''}
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: '#ffd700', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {fmtMs(p.possessionTime)}
+              </span>
+              <span style={{ fontSize: 12, color: '#aad4ff', textAlign: 'right' }}>
+                {p.kills ?? 0}
+              </span>
+            </div>
+          )
+        })}
       </div>
 
-      {/* Buttons Row */}
-      <div style={{ display: 'flex', gap: 20 }}>
-        {/* Restart */}
-        <button
-          onClick={onRestart}
-          style={{
-            background: 'linear-gradient(135deg, #FFD700, #f59e0b)',
-            color: '#000',
-            border: 'none',
-            borderRadius: 10,
-            fontSize: 16,
-            fontWeight: 'bold',
-            letterSpacing: 4,
-            padding: '14px 40px',
-            cursor: 'pointer',
-            fontFamily: '"Courier New", monospace',
-            boxShadow: '0 0 30px #FFD70066',
-            transition: 'transform 0.15s ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-        >
-          PLAY AGAIN
-        </button>
-
-        {/* Home */}
+      {/* Buttons */}
+      <div style={{ display: 'flex', gap: 16 }}>
         <button
           onClick={() => router.push('/home')}
           style={{
-            background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 10,
-            fontSize: 16,
-            fontWeight: 'bold',
-            letterSpacing: 4,
-            padding: '14px 40px',
-            cursor: 'pointer',
-            fontFamily: '"Courier New", monospace',
-            boxShadow: '0 0 30px #3b82f666',
-            transition: 'transform 0.15s ease',
+            padding: '12px 24px', background: 'transparent',
+            color: '#00f5ff', border: '2px solid #00f5ff',
+            cursor: 'pointer', fontFamily: 'inherit', fontSize: 9, letterSpacing: 1,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         >
-          HOME
+          ← HOME
         </button>
+        {onRestart && (
+          <button
+            onClick={onRestart}
+            style={{
+              padding: '12px 24px', background: '#ff6b1a',
+              color: '#fff', border: '3px solid #000',
+              boxShadow: '3px 3px 0 #000',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 9, letterSpacing: 1,
+            }}
+          >
+            PLAY AGAIN ▶
+          </button>
+        )}
       </div>
     </div>
   )

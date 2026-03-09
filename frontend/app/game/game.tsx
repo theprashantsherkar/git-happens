@@ -1,137 +1,145 @@
-'use client'
-
-import { useState, useCallback, useEffect } from 'react'
-import { useGameState } from '../hooks/useGameState'
-import { GameScene } from '../components/GameScene'
-import { HUD } from '../components/HUD'
-import { EndScreen } from '../components/EndScreen'
+"use client";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useGameState } from "../hooks/useGameState";
+import { GameClient } from "./GameClient";
+import { GameScene } from "../components/GameScene";
+import { HUD } from "../components/HUD";
+import { EndScreen } from "../components/EndScreen";
 
 // ─── Countdown ────────────────────────────────────────────────────────────────
 function Countdown({ onDone }: { onDone: () => void }) {
-  const [count, setCount] = useState(5)
+  const [count, setCount] = useState(5);
+  const [go, setGo] = useState(false);
+  const doneRef = useRef(false);
 
-  useEffect(() => {
+  useState(() => {
     const interval = setInterval(() => {
       setCount(prev => {
         if (prev <= 1) {
-          clearInterval(interval)
-          setTimeout(onDone, 600)
-          return 0
+          clearInterval(interval);
+          if (!doneRef.current) {
+            doneRef.current = true;
+            setGo(true);
+            setTimeout(onDone, 600);
+          }
+          return 0;
         }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [onDone])
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  });
 
   return (
     <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.82)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 100,
-      pointerEvents: 'none',
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: "100px", color: "#ffd700", zIndex: 100,
+      fontFamily: "'Press Start 2P', monospace",
     }}>
-      <div style={{
-        fontSize: count > 0 ? 120 : 80,
-        fontWeight: 'bold',
-        fontFamily: '"Courier New", monospace',
-        color: count > 0 ? '#ffd700' : '#ffffff',
-        letterSpacing: count > 0 ? 0 : 12,
-        textShadow: `0 0 60px ${count > 0 ? '#ffd700' : '#ffffff'}88`,
-        transition: 'all 0.15s ease',
-      }}>
-        {count > 0 ? count : 'GO!'}
-      </div>
-      {count > 0 && (
-        <div style={{
-          marginTop: 16,
-          fontSize: 13,
-          letterSpacing: 6,
-          color: '#ffffff44',
-          fontFamily: '"Courier New", monospace',
-        }}>
-          GET READY
-        </div>
-      )}
+      {go ? "GO!" : count}
     </div>
-  )
+  );
 }
 
 // ─── Active Game ──────────────────────────────────────────────────────────────
-function ActiveGame({
-  sessionMinutes,
-  onRestart,
-}: {
-  sessionMinutes: number
-  onRestart: () => void
-}) {
-  const [countdownDone, setCountdownDone] = useState(false)
-  const handleDone = useCallback(() => setCountdownDone(true), [])
+export function ActiveGame({ roomId, username }: { roomId: string; username: string }) {
+  const router = useRouter();
+  const [countdownDone, setCountdownDone] = useState(false);
 
-  const { state } = useGameState({
-    sessionMinutes,
-    enabled: countdownDone,
-  })
+  const {
+    phase, room, renderPlayers, myPlayer, myPlayerId,
+    leaderboard, endRoom,
+    applyServerState, handleGameStart, handleGameOver,
+    handleLeaderboardUpdate, setIdentity,
+    keysRef, angleRef, shootEmitRef,
+  } = useGameState();
 
-  // ── Game ended — render EndScreen as a full-page overlay, NOT inside Canvas ──
-  if (state.phase === 'ended') {
-    return (
-      <EndScreen players={state.players} onRestart={onRestart} />
-    )
-  }
+  const playerCount = room ? Object.keys(room.players).length : 0;
 
   return (
-    // Outermost wrapper fills the viewport
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      position: 'relative',
-      overflow: 'hidden',
-      background: '#000',
-    }}>
-      {/* 3D canvas fills the whole background */}
-      <GameScene state={state} />
+    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#000" }}>
 
-      {/* HUD sits on top via absolute positioning */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',   // let clicks pass through to canvas
-        zIndex: 10,
-      }}>
-        <HUD
-          players={state.players}
-          elapsed={state.elapsed}
-          sessionDuration={state.sessionDuration}
-          worldSpeed={state.worldSpeed}
+      {/* ── GameClient: mounted ONCE, lives through all phases ── */}
+      <GameClient
+        roomId={roomId}
+        playerName={username}
+        onServerState={applyServerState}
+        onGameStart={handleGameStart}
+        onGameOver={handleGameOver}
+        onLeaderboardUpdate={handleLeaderboardUpdate}
+        onIdentity={setIdentity}
+        keysRef={keysRef}
+        angleRef={angleRef}
+        onShoot={(fn) => { shootEmitRef.current = fn; }}
+      />
+
+      {/* ── Waiting screen ── */}
+      {phase === "waiting" && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 50,
+          background: "#0d0221",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          fontFamily: "'Press Start 2P', monospace", gap: 20,
+        }}>
+          {/* Animated dots ring */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+            {[0,1,2,3].map(i => (
+              <div key={i} style={{
+                width: 16, height: 16, borderRadius: "50%",
+                background: i < playerCount ? "#00f5ff" : "#1a2a3a",
+                boxShadow: i < playerCount ? "0 0 10px #00f5ff" : "none",
+                transition: "background 0.3s, box-shadow 0.3s",
+              }} />
+            ))}
+          </div>
+
+          <p style={{ fontSize: 12, color: "#00f5ff" }}>WAITING FOR PLAYERS</p>
+          <p style={{ fontSize: 10, color: "#556688" }}>
+            {playerCount} / 4 joined
+          </p>
+          <p style={{ fontSize: 8, color: "#334466" }}>Room: {roomId}</p>
+
+          {playerCount === 4 && (
+            <p style={{ fontSize: 9, color: "#ffd700", animation: "pulse 0.8s infinite alternate" }}>
+              STARTING...
+            </p>
+          )}
+
+          <style>{`@keyframes pulse { from { opacity:0.4; } to { opacity:1; } }`}</style>
+        </div>
+      )}
+
+      {/* ── End screen ── */}
+      {phase === "ended" && endRoom && (
+        <EndScreen
+          players={Object.values(endRoom.players).sort((a, b) => b.possessionTime - a.possessionTime)}
+          myPlayerId={myPlayerId}
+          onRestart={() => router.push("/home")}
         />
-      </div>
+      )}
 
-      {/* Countdown overlay */}
-      {!countdownDone && <Countdown onDone={handleDone} />}
+      {/* ── Active game scene (only rendered when playing) ── */}
+      {phase === "playing" && (
+        <>
+          <GameScene
+            players={renderPlayers}
+            flag={room?.flag ?? null}
+            myPlayerId={myPlayerId}
+          />
+          <HUD
+            leaderboard={leaderboard}
+            myPlayer={myPlayer}
+            room={room}
+          />
+          {!countdownDone && (
+            <Countdown onDone={() => setCountdownDone(true)} />
+          )}
+        </>
+      )}
+
     </div>
-  )
-}
-
-// ─── Root page ────────────────────────────────────────────────────────────────
-export default function GamePage() {
-  const [sessionMinutes] = useState(5)
-  const [gameKey, setGameKey] = useState(0)
-
-  // Incrementing gameKey forces ActiveGame to fully remount on restart,
-  // which resets useGameState to a fresh initial state
-  const handleRestart = useCallback(() => setGameKey(k => k + 1), [])
-
-  return (
-    <ActiveGame
-      key={gameKey}
-      sessionMinutes={sessionMinutes}
-      onRestart={handleRestart}
-    />
-  )
+  );
 }

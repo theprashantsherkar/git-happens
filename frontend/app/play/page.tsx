@@ -1,11 +1,70 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMusic } from "../hooks/useAudio";
+import { jwtDecode } from "jwt-decode";
+import { io, Socket } from "socket.io-client";
 
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "http://localhost:3001";
 const SESSION_OPTIONS = [2, 5, 10, 20] as const;
 
+function getUsername(): string {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return "Player";
+    const decoded = jwtDecode<{ username?: string; name?: string }>(token);
+    return decoded.username ?? decoded.name ?? "Player";
+  } catch { return "Player"; }
+}
+
+// ─── Matchmaking overlay ──────────────────────────────────────────────────────
+function MatchmakingOverlay({ onCancel }: { onCancel: () => void }) {
+  const [dots, setDots] = useState(".");
+  useEffect(() => {
+    const t = setInterval(() => setDots(d => d.length >= 3 ? "." : d + "."), 500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      background: "rgba(5,2,20,0.96)",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 28,
+    }}>
+      {/* Spinning ring */}
+      <div style={{
+        width: 80, height: 80, borderRadius: "50%",
+        border: "4px solid rgba(0,245,255,0.15)",
+        borderTopColor: "#00f5ff",
+        animation: "spin 1s linear infinite",
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 12, color: "#00f5ff", marginBottom: 10 }}>
+          FINDING MATCH{dots}
+        </div>
+        <div style={{ fontFamily: "'VT323', monospace", fontSize: 18, color: "#556688" }}>
+          Waiting for 3 more players to join
+        </div>
+      </div>
+
+      <button
+        onClick={onCancel}
+        style={{
+          fontFamily: "'Press Start 2P', monospace", fontSize: 8,
+          padding: "10px 22px", background: "transparent",
+          color: "#ff2d78", border: "2px solid #ff2d78", cursor: "pointer",
+        }}
+      >
+        CANCEL
+      </button>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function PlayPage() {
   useMusic("nav");
   const router = useRouter();
@@ -14,11 +73,52 @@ export default function PlayPage() {
   const [roomInput, setRoomInput] = useState("");
   const [mode, setMode] = useState<"random" | "room" | null>(null);
   const [error, setError] = useState("");
+  const [matchmaking, setMatchmaking] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
 
+  // ── Cleanup socket on unmount ────────────────────────────────────────────
+  useEffect(() => {
+    return () => { socketRef.current?.disconnect(); };
+  }, []);
+
+  // ── Quick match: connect → emit find_match → wait for match_found ─────────
   const handleRandom = () => {
-    router.push(`/game?duration=${selected}&mode=random`);
+    const token = localStorage.getItem("token");
+    if (!token) { router.push("/auth/login"); return; }
+
+    const username = getUsername();
+    setMatchmaking(true);
+
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ["websocket"],
+    });
+    socketRef.current = socket;
+
+    socket.on("connect_error", () => {
+      setMatchmaking(false);
+      setError("Could not connect to server.");
+      socket.disconnect();
+    });
+
+    socket.on("match_found", ({ roomId, playerIndex, playerId }: { roomId: string; playerIndex: number; playerId: string }) => {
+      setMatchmaking(false);
+      socket.disconnect();
+      router.push(`/game?roomId=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`);
+    });
+
+    socket.on("connect", () => {
+      socket.emit("find_match");
+    });
   };
 
+  const handleCancelMatchmaking = () => {
+    socketRef.current?.disconnect();
+    socketRef.current = null;
+    setMatchmaking(false);
+  };
+
+  // ── Private room: roomId is the code, navigate immediately ───────────────
   const handleCreateRoom = () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setRoomCode(code);
@@ -27,11 +127,13 @@ export default function PlayPage() {
 
   const handleJoinRoom = () => {
     if (roomInput.trim().length < 4) { setError("Enter a valid room code."); return; }
-    router.push(`/game?duration=${selected}&room=${roomInput.trim().toUpperCase()}`);
+    const username = getUsername();
+    router.push(`/game?roomId=${roomInput.trim().toUpperCase()}&username=${encodeURIComponent(username)}`);
   };
 
   const handleStartRoom = () => {
-    router.push(`/game?duration=${selected}&room=${roomCode}`);
+    const username = getUsername();
+    router.push(`/game?roomId=${roomCode}&username=${encodeURIComponent(username)}`);
   };
 
   return (
@@ -75,10 +177,8 @@ export default function PlayPage() {
         .pc { position: absolute; width: 8px; height: 8px; background: #00f5ff; }
         .tl { top:-1px; left:-1px; } .tr { top:-1px; right:-1px; } .bl { bottom:-1px; left:-1px; } .br { bottom:-1px; right:-1px; }
         .panel-title { font-family: 'Press Start 2P', monospace; font-size: 10px; color: #00f5ff; margin-bottom: 22px; text-align: center; text-shadow: 0 0 8px #00f5ff; letter-spacing: 1px; }
-
-        /* Duration */
         .dur-label { font-family: 'Press Start 2P', monospace; font-size: 7px; letter-spacing: 2px; color: #aad4ff; text-align: center; display: block; margin-bottom: 14px; }
-        .dur-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 0; }
+        .dur-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .dur-btn { background: rgba(0,10,30,0.8); border: 3px solid #334466; color: #7799bb; font-family: 'Press Start 2P', monospace; cursor: pointer; padding: 14px 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 5px; transition: all 0.1s; }
         .dur-btn .num { font-size: 24px; }
         .dur-btn .unit { font-size: 6px; letter-spacing: 2px; color: #334466; }
@@ -86,8 +186,6 @@ export default function PlayPage() {
         .dur-btn.active { border-color: #ffd700; background: rgba(255,215,0,0.1); box-shadow: 0 0 14px rgba(255,215,0,0.3), 4px 4px 0 #000; }
         .dur-btn.active .num { color: #ffd700; }
         .dur-btn.active .unit { color: #b8860b; }
-
-        /* Mode buttons */
         .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
         .mode-btn { border: 3px solid #000; font-family: 'Press Start 2P', monospace; font-size: 9px; letter-spacing: 1px; padding: 18px 12px; cursor: pointer; box-shadow: 4px 4px 0 #000; transition: transform 0.08s, box-shadow 0.08s; display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .mode-btn:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 #000; }
@@ -97,30 +195,26 @@ export default function PlayPage() {
         .btn-random { background: #ff6b1a; color: #fff; }
         .btn-random:hover { background: #ff8c3a; }
         .btn-room { background: rgba(0,245,255,0.12); color: #00f5ff; border-color: #00f5ff; box-shadow: 4px 4px 0 #000, 0 0 14px rgba(0,245,255,0.15); }
-        .btn-room:hover { background: rgba(0,245,255,0.2); box-shadow: 6px 6px 0 #000, 0 0 20px rgba(0,245,255,0.2); }
-
-        /* Room panel */
+        .btn-room:hover { background: rgba(0,245,255,0.2); }
         .room-panel { animation-delay: 0.1s; }
         .room-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 20px; border: 2px solid #334466; }
         .room-tab { font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 10px; text-align: center; cursor: pointer; color: #556688; background: transparent; border: none; transition: all 0.15s; letter-spacing: 1px; }
         .room-tab.active { background: rgba(0,245,255,0.12); color: #00f5ff; }
-
         .code-display { background: rgba(0,0,0,0.6); border: 2px solid #ffd700; padding: 16px; text-align: center; margin-bottom: 16px; }
         .code-label { font-family: 'Press Start 2P', monospace; font-size: 7px; color: #aad4ff; letter-spacing: 2px; display: block; margin-bottom: 8px; }
         .code-value { font-family: 'Press Start 2P', monospace; font-size: 26px; color: #ffd700; letter-spacing: 6px; text-shadow: 0 0 16px #ffd70066; }
         .code-hint { font-family: 'VT323', monospace; font-size: 16px; color: #556688; margin-top: 8px; }
-
         .field-input { width: 100%; background: rgba(0,10,30,0.8); border: 2px solid #334466; color: #e0f0ff; font-family: 'VT323', monospace; font-size: 24px; padding: 10px 14px; outline: none; transition: border-color 0.15s; letter-spacing: 3px; margin-bottom: 14px; text-transform: uppercase; }
-        .field-input::placeholder { color: #334466; letter-spacing: 2px; }
-        .field-input:focus { border-color: #00f5ff; box-shadow: 0 0 0 2px rgba(0,245,255,0.2); }
+        .field-input::placeholder { color: #334466; }
+        .field-input:focus { border-color: #00f5ff; }
         .error-msg { font-family: 'VT323', monospace; font-size: 18px; color: #ff2d78; text-align: center; margin-bottom: 10px; }
-
         .btn-action { width: 100%; background: #ff6b1a; color: #fff; border: 3px solid #000; font-family: 'Press Start 2P', monospace; font-size: 10px; padding: 13px; cursor: pointer; box-shadow: 4px 4px 0 #000; letter-spacing: 1px; transition: transform 0.08s, box-shadow 0.08s; }
         .btn-action:hover { background: #ff8c3a; transform: translate(-2px,-2px); box-shadow: 6px 6px 0 #000; }
-        .btn-action:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #000; }
         .btn-back { background: transparent; color: #556688; border: 2px solid #334466; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 8px 16px; cursor: pointer; margin-bottom: 16px; letter-spacing: 1px; transition: color 0.15s, border-color 0.15s; }
         .btn-back:hover { color: #00f5ff; border-color: #00f5ff; }
       `}</style>
+
+      {matchmaking && <MatchmakingOverlay onCancel={handleCancelMatchmaking} />}
 
       <div className="scene">
         <div className="stars">{Array.from({length:40}).map((_,i)=><div key={i} className="star" style={{ width:`${(i*7%3)+1}px`, height:`${(i*7%3)+1}px`, top:`${(i*13)%55}%`, left:`${(i*17)%100}%`, animationDelay:`${(i*0.13)%3}s`, animationDuration:`${1.5+(i*0.11)%2}s` }}/>)}</div>
@@ -149,31 +243,29 @@ export default function PlayPage() {
         <main className="main">
           <div className="page-title">▶ START A GAME ◀</div>
 
-          {/* Duration picker — always visible */}
-          <div className="panel" style={{ maxWidth:560 }}>
+          <div className="panel">
             <div className="pc tl"/><div className="pc tr"/><div className="pc bl"/><div className="pc br"/>
-            <h2 className="panel-title">⏱ SELECT SESSION DURATION</h2>
+            <h2 className="panel-title">⏱ SESSION DURATION</h2>
             <span className="dur-label">HOW LONG DO YOU WANT TO PLAY?</span>
             <div className="dur-grid">
               {SESSION_OPTIONS.map(mins => (
                 <button key={mins} className={`dur-btn ${selected===mins?"active":""}`} onClick={() => setSelected(mins)}>
-                  <span className="num">{mins}</span>
-                  <span className="unit">MIN</span>
+                  <span className="num">{mins}</span><span className="unit">MIN</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Mode selection or room panel */}
           {mode === null ? (
-            <div className="panel" style={{ maxWidth:560, animationDelay:"0.08s" }}>
+            <div className="panel" style={{ animationDelay:"0.08s" }}>
               <div className="pc tl"/><div className="pc tr"/><div className="pc bl"/><div className="pc br"/>
               <h2 className="panel-title">🎮 CHOOSE YOUR MODE</h2>
+              {error && <div className="error-msg">⚠ {error}</div>}
               <div className="modes">
                 <button className="mode-btn btn-random" onClick={handleRandom}>
                   <span className="mode-icon">⚡</span>
                   QUICK MATCH
-                  <span className="mode-sub">random players</span>
+                  <span className="mode-sub">matchmake with others</span>
                 </button>
                 <button className="mode-btn btn-room" onClick={() => setMode("room")}>
                   <span className="mode-icon">🏠</span>
@@ -183,33 +275,27 @@ export default function PlayPage() {
               </div>
             </div>
           ) : (
-            <div className="panel room-panel" style={{ maxWidth:560 }}>
+            <div className="panel room-panel">
               <div className="pc tl"/><div className="pc tr"/><div className="pc bl"/><div className="pc br"/>
               <button className="btn-back" onClick={() => { setMode(null); setRoomCode(""); setRoomInput(""); setError(""); }}>← BACK</button>
               <div className="room-tabs">
                 <button className={`room-tab ${!roomCode?"active":""}`} onClick={() => { setRoomCode(""); setError(""); }}>JOIN ROOM</button>
                 <button className={`room-tab ${roomCode?"active":""}`} onClick={handleCreateRoom}>CREATE ROOM</button>
               </div>
-
               {roomCode ? (
                 <>
                   <div className="code-display">
-                    <span className="code-label">YOUR ROOM CODE — SHARE WITH FRIENDS</span>
+                    <span className="code-label">SHARE THIS CODE WITH FRIENDS</span>
                     <div className="code-value">{roomCode}</div>
-                    <div className="code-hint">waiting for players to join...</div>
+                    <div className="code-hint">all 4 players enter this code to join</div>
                   </div>
-                  <button className="btn-action" onClick={handleStartRoom}>▶ START WITH {selected} MIN</button>
+                  <button className="btn-action" onClick={handleStartRoom}>▶ JOIN THIS ROOM</button>
                 </>
               ) : (
                 <>
                   {error && <div className="error-msg">⚠ {error}</div>}
-                  <input
-                    className="field-input"
-                    placeholder="ENTER CODE"
-                    value={roomInput}
-                    onChange={e => { setRoomInput(e.target.value.toUpperCase()); setError(""); }}
-                    maxLength={8}
-                  />
+                  <input className="field-input" placeholder="ENTER CODE" value={roomInput}
+                    onChange={e => { setRoomInput(e.target.value.toUpperCase()); setError(""); }} maxLength={8} />
                   <button className="btn-action" onClick={handleJoinRoom}>▶ JOIN ROOM</button>
                 </>
               )}

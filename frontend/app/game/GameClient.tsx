@@ -1,77 +1,85 @@
 'use client'
-/**
- * GameClient.tsx
- *
- * Wires the socket.io connection into the game.
- * Currently a stub — swap `SOCKET_URL` with your server and uncomment
- * the socket event handlers once your backend is ready.
- *
- * Architecture:
- *   socket events → dispatch() → reducer → re-render
- */
 
 import { useEffect, useRef } from 'react'
-// import { io, Socket } from 'socket.io-client'
-import { GameState } from '../hooks/useGameState'
+import { io, Socket } from 'socket.io-client'
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:3001'
 
 type Props = {
-  state: GameState
-  dispatch: React.Dispatch<any>
   roomId: string
   playerName: string
+  onServerState: (room: any) => void
+  onGameStart: () => void
+  onGameOver: (room: any) => void
+  onLeaderboardUpdate: (lb: any[]) => void
+  onIdentity: (playerId: string, playerIndex: number) => void
+  keysRef: React.MutableRefObject<Set<string>>
+  angleRef: React.MutableRefObject<number>
+  onShoot: (emit: () => void) => void
 }
 
-export function GameClient({ state, dispatch, roomId, playerName }: Props) {
-  // const socketRef = useRef<Socket | null>(null)
+export function GameClient({
+  roomId,
+  playerName,
+  onServerState,
+  onGameStart,
+  onGameOver,
+  onLeaderboardUpdate,
+  onIdentity,
+  keysRef,
+  angleRef,
+  onShoot,
+}: Props) {
+  const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
-    /**
-     * Uncomment and fill in when backend is ready:
-     *
-     * const socket = io(SOCKET_URL, { query: { roomId, playerName } })
-     * socketRef.current = socket
-     *
-     * // Server broadcasts the authoritative tick
-     * socket.on('tick', (serverState: Partial<GameState>) => {
-     *   dispatch({ type: 'SERVER_SYNC', payload: serverState })
-     * })
-     *
-     * // Flag events
-     * socket.on('flag:captured', ({ playerId }) => {
-     *   // handled via tick sync
-     * })
-     *
-     * socket.on('player:killed', ({ killed, shooter }) => {
-     *   // handled via tick sync
-     * })
-     *
-     * socket.on('game:ended', () => {
-     *   dispatch({ type: 'FORCE_END' })
-     * })
-     *
-     * return () => { socket.disconnect() }
-     */
+    const token = localStorage.getItem('token')
 
-    // Stub: log state changes in dev
-    if (process.env.NODE_ENV === 'development') {
-      console.debug('[GameClient] phase:', state.phase, '| players:', state.players.length)
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    socketRef.current = socket
+
+    // ── Identity ────────────────────────────────────────────────────────────
+    socket.on('joined_successfully', ({ playerId, playerIndex }: { playerId: string; playerIndex: number }) => {
+      onIdentity(playerId, playerIndex)
+    })
+
+    socket.on('match_found', ({ roomId: assignedRoom, playerId, playerIndex }: any) => {
+      onIdentity(playerId, playerIndex)
+      // roomId already comes from the route/props — just capture identity here
+    })
+
+    // ── Game lifecycle ───────────────────────────────────────────────────────
+    socket.on('game_start', () => onGameStart())
+    socket.on('room_state', (room: any) => onServerState(room))
+    socket.on('game_over', (room: any) => onGameOver(room))
+    socket.on('leaderboard_update', (lb: any[]) => onLeaderboardUpdate(lb))
+
+    // ── Join the room ────────────────────────────────────────────────────────
+    socket.emit('join_room', { roomId, username: playerName })
+
+    // ── Input loop: emit held keys + angle every 50ms ────────────────────────
+    const inputInterval = setInterval(() => {
+      if (!socket.connected) return
+      socket.emit('input', {
+        roomId,
+        keys: Array.from(keysRef.current),
+        angle: angleRef.current,
+      })
+    }, 50)
+
+    // ── Expose shoot emitter to parent ───────────────────────────────────────
+    onShoot(() => {
+      socket.emit('shoot', { roomId })
+    })
+
+    return () => {
+      clearInterval(inputInterval)
+      socket.disconnect()
     }
-  }, [state.phase])
+  }, [roomId])
 
-  /**
-   * When local player moves, emit to server:
-   *
-   * export function emitMove(dir: 'left'|'right'|'jump') {
-   *   socketRef.current?.emit('player:move', { dir })
-   * }
-   *
-   * export function emitShoot() {
-   *   socketRef.current?.emit('player:shoot')
-   * }
-   */
-
-  // This component renders nothing — it's a side-effect-only client
   return null
 }

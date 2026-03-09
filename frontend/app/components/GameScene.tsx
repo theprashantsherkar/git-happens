@@ -2,39 +2,43 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { GameState } from '../hooks/useGameState'
+import { ServerPlayer, ServerFlag } from '../hooks/useGameState'
 import { SceneLighting } from './SceneLighting'
 import { Track } from './Track'
 import { ObstacleMesh } from './ObstacleMesh'
 import { CameraRig } from './CameraRig'
 import { PlayerMesh, BulletMesh } from './PlayerMesh'
 
-// ─── Flag mesh in world ───────────────────────────────────────────────────────
-function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: number | null }) {
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Props = {
+  players: ServerPlayer[]
+  flag: ServerFlag | null
+  myPlayerId: string | null
+}
+
+// ─── Flag mesh ────────────────────────────────────────────────────────────────
+function FlagObject({ flag }: { flag: ServerFlag }) {
   const poleRef = useRef<THREE.Mesh>(null)
 
   useFrame(({ clock }) => {
-    if (poleRef.current && carrierId === null) {
+    if (poleRef.current && flag.holderId === null) {
       poleRef.current.position.y = Math.sin(clock.elapsedTime * 2) * 0.15 + 0.8
     }
   })
 
-  // Don't render flag separately when carried — PlayerMesh shows it on the carrier's back
-  if (carrierId !== null) return null
+  // Don't render when carried — PlayerMesh shows it on the carrier
+  if (flag.holderId !== null) return null
 
   return (
-    <group position={[x, 0, z]}>
-      {/* Pole */}
+    <group position={[flag.x, 0, flag.y ?? 0]}>
       <mesh ref={poleRef} position={[0, 0.8, 0]}>
         <cylinderGeometry args={[0.06, 0.06, 1.6, 6]} />
         <meshLambertMaterial color="#aaaaaa" />
       </mesh>
-      {/* Flag cloth */}
       <mesh position={[0.3, 1.55, 0]}>
         <boxGeometry args={[0.6, 0.35, 0.05]} />
         <meshLambertMaterial color="#dc2626" />
       </mesh>
-      {/* Glow ring on ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <ringGeometry args={[0.5, 0.75, 24]} />
         <meshLambertMaterial color="#ffd700" transparent opacity={0.6} />
@@ -77,35 +81,21 @@ function SkyAndClouds() {
   }, [])
 
   useFrame((_, delta) => {
-    if (cloudGroup.current) {
-      cloudGroup.current.position.x += delta * 0.3
-    }
+    if (cloudGroup.current) cloudGroup.current.position.x += delta * 0.3
   })
 
   return (
     <>
-      {/* Sky dome */}
       <mesh>
         <sphereGeometry args={[300, 64, 64]} />
         <meshBasicMaterial map={skyTexture} side={THREE.BackSide} />
       </mesh>
-
-      {/* Drifting clouds */}
       <group ref={cloudGroup}>
         {clouds.map((c, i) => (
           <group key={i} position={[c.x, c.y, c.z]} scale={c.scale}>
-            <mesh>
-              <sphereGeometry args={[1.6, 16, 16]} />
-              <meshLambertMaterial color="#ffffff" transparent opacity={0.85} />
-            </mesh>
-            <mesh position={[1.4, 0.3, 0]}>
-              <sphereGeometry args={[1.2, 16, 16]} />
-              <meshLambertMaterial color="#f0f6ff" transparent opacity={0.8} />
-            </mesh>
-            <mesh position={[-1.3, 0.2, 0]}>
-              <sphereGeometry args={[1.1, 16, 16]} />
-              <meshLambertMaterial color="#e6f2ff" transparent opacity={0.8} />
-            </mesh>
+            <mesh><sphereGeometry args={[1.6, 16, 16]} /><meshLambertMaterial color="#ffffff" transparent opacity={0.85} /></mesh>
+            <mesh position={[1.4, 0.3, 0]}><sphereGeometry args={[1.2, 16, 16]} /><meshLambertMaterial color="#f0f6ff" transparent opacity={0.8} /></mesh>
+            <mesh position={[-1.3, 0.2, 0]}><sphereGeometry args={[1.1, 16, 16]} /><meshLambertMaterial color="#e6f2ff" transparent opacity={0.8} /></mesh>
           </group>
         ))}
       </group>
@@ -113,10 +103,11 @@ function SkyAndClouds() {
   )
 }
 
-// ─── Main scene export ────────────────────────────────────────────────────────
-type Props = { state: GameState }
+// ─── Main export ──────────────────────────────────────────────────────────────
+export function GameScene({ players, flag, myPlayerId }: Props) {
+  // Find the local player to follow with camera
+  const myPlayer = players.find(p => p.id === myPlayerId) ?? players[0] ?? null
 
-export function GameScene({ state }: Props) {
   return (
     <Canvas
       shadows
@@ -128,24 +119,17 @@ export function GameScene({ state }: Props) {
       <SkyAndClouds />
       <Track />
 
-      {/* Flag — only visible when not being carried */}
-      <FlagObject
-        x={state.flag.x}
-        z={state.flag.z}
-        carrierId={state.flag.carrierId}
-      />
+      {flag && <FlagObject flag={flag} />}
 
-      {/* All players — PlayerMesh handles the full array internally */}
-      <PlayerMesh players={state.players} />
+      {/* PlayerMesh and BulletMesh need to handle ServerPlayer shape —
+          see note below if you get type errors there */}
+      <PlayerMesh players={players} myPlayerId={myPlayerId} />
+      <BulletMesh bullets={[]} />
 
-      {/* Bullets */}
-      <BulletMesh bullets={state.bullets} />
+      <ObstacleMesh obstacles={[]} />
 
-      {/* Obstacles */}
-      <ObstacleMesh obstacles={state.obstacles} />
-
-      {/* Camera follows player 0 (Blue) */}
-      <CameraRig players={state.players} />
+      {/* Camera follows the local player */}
+      <CameraRig player={myPlayer} />
     </Canvas>
   )
 }
