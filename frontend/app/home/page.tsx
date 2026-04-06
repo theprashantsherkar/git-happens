@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useMusic } from "../hooks/useAudio";
 import axios from "axios";
 import { BACKEND_URI } from "../page";
 
@@ -29,7 +28,6 @@ function Skeleton({ w = "100%", h = 18 }: { w?: string | number; h?: number }) {
 }
 
 export default function HomePage() {
-  useMusic("nav")
   const router = useRouter()
   const [profile, setProfile]               = useState<Profile | null>(null)
   const [leaders, setLeaders]               = useState<LeaderEntry[]>([])

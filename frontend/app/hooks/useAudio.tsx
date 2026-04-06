@@ -394,25 +394,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Hook: tell audio system which track this page needs ──────────────────────
-export function useMusic(track: Track) {
-  const { playTrack, unlock, ready } = useContext(AudioCtx);
-
-  // Unlock on first interaction with the page
-  useEffect(() => {
-    const handler = () => {
-      unlock();
-    };
-    window.addEventListener("click", handler, { once: true });
-    return () => window.removeEventListener("click", handler);
-  }, [unlock]);
-
-  // Switch track once audio is ready
-  useEffect(() => {
-    if (ready) playTrack(track);
-  }, [ready, track, playTrack]);
-}
-
 export function useAudio() {
   return useContext(AudioCtx);
 }

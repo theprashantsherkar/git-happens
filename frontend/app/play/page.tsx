@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useMusic } from "../hooks/useAudio";
 import { jwtDecode } from "jwt-decode";
 import { io, Socket } from "socket.io-client";
 
@@ -66,7 +65,6 @@ function MatchmakingOverlay({ onCancel }: { onCancel: () => void }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function PlayPage() {
-  useMusic("nav");
   const router = useRouter();
   const [selected, setSelected] = useState<number>(5);
   const [roomCode, setRoomCode] = useState("");

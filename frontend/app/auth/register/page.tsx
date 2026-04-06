@@ -4,7 +4,6 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import axios from 'axios';
 import { BACKEND_URI } from "@/app/page";
-// import { useMusic } from "./useAudio";
 
 interface RegisterForm {
   username: string;
@@ -29,7 +28,6 @@ function getPasswordStrength(password: string): PasswordStrength {
 }
 
 export default function RegisterPage() {
-    // useMusic("nav");
     const [form, setForm] = useState<RegisterForm>({
     username: "",
     email: "",

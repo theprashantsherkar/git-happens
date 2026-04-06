@@ -1,4 +1,3 @@
-
 import dotenv from 'dotenv'
 import express, { urlencoded } from 'express'
 import userRoutes from "./routes/userRoutes.js"
@@ -28,7 +27,5 @@ app.get('/', (req, res) => {
 
 app.use("/app/api/user-routes", userRoutes);
 app.use("/app/api/leaderboard", leaderboardRoutes)
-
-
 
 export default app;
