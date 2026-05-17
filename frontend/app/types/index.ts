@@ -4,16 +4,17 @@ export type Player = {
   id: number
   name: string
   color: string
-  hasGun: boolean 
-  x: number            
-  z: number           
-  angle: number      
-  vx: number           
-  vz: number           
+  hasGun: boolean
+  x: number
+  z: number
+  angle: number
+  vx: number
+  vz: number
   alive: boolean
+  left?: boolean
   role: PlayerRole
-  flagTime: number     
-  lastShotAt: number 
+  flagTime: number
+  lastShotAt: number
   flagHoldStart: number | null
   kills: number
   isJumping: boolean

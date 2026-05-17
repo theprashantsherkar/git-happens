@@ -5,16 +5,15 @@ import { PLAYER_COLORS, PLAYER_NAMES } from '../constants'
 
 const WORLD_SIZE  = 80
 const WALL_T_HALF = 0.6
-const WORLD_CLAMP = WORLD_SIZE - WALL_T_HALF   // 79.4
+const WORLD_CLAMP = WORLD_SIZE - WALL_T_HALF
 
 const MOVE_SPEED   = 12
 const TURN_SPEED   = 2.2
 const BULLET_SPEED = 30
 const BULLET_LIFE  = 2.5
 const FLAG_PICKUP_R = 2.5
-const BULLET_HIT_R  = 1.4   // radius for bullet-player collision
+const BULLET_HIT_R  = 1.4
 
-// Carrier is slightly slower (holding the flag)
 const CARRIER_SPEED_FACTOR = 0.78
 
 const GRAVITY    = -30
@@ -34,6 +33,15 @@ function randomRespawn(): { x: number; z: number } {
   }
 }
 
+export type KillEvent = {
+  victimIndex: number
+  killerIndex: number
+  respawnX: number
+  respawnZ: number
+  wasCarrier: boolean
+  ts: number
+}
+
 export type GameState = {
   phase: GamePhase
   players: Player[]
@@ -44,6 +52,9 @@ export type GameState = {
   startedAt: number | null
   sessionDuration: number
   worldSpeed: number
+  playerIndex: number
+  lastKillEvent: KillEvent | null
+  lastFlagEvent: { ts: number } | null
 }
 
 const BINDINGS = [
@@ -57,12 +68,16 @@ type Action =
   | { type: 'TICK';   dt: number; keys: Set<string>; enabled: boolean }
   | { type: 'START' }
   | { type: 'ENABLE' }
+  | { type: 'SYNC_PLAYER'; playerIndex: number; data: Partial<Player> & { name?: string } }
+  | { type: 'SYNC_KILL'; victimIndex: number; killerIndex: number; respawnX: number; respawnZ: number; wasCarrier: boolean; ts: number }
+  | { type: 'SYNC_FLAG'; flag: Flag }
+  | { type: 'SET_PLAYER_NAMES'; names: { playerIndex: number; username: string }[] }
+  | { type: 'PLAYER_LEFT'; playerIndex: number }
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
 }
 
-/* ============================ */
 function spawnObstacles(): Obstacle[] {
   const obs: Obstacle[] = []
   const types: Obstacle['type'][] = [
@@ -81,11 +96,10 @@ function spawnObstacles(): Obstacle[] {
   return obs
 }
 
-/* ============================ */
-function makeInitialState(sessionMinutes: number): GameState {
+function makeInitialState(sessionMinutes: number, playerIndex: number = 0, playerName: string = PLAYER_NAMES[0]): GameState {
   const players: Player[] = PLAYER_COLORS.map((color, i) => ({
     id: i,
-    name: PLAYER_NAMES[i],
+    name: i === playerIndex ? playerName : PLAYER_NAMES[i],
     color,
     x: SPAWN[i][0],
     z: SPAWN[i][2],
@@ -93,7 +107,7 @@ function makeInitialState(sessionMinutes: number): GameState {
     vx: 0,
     vz: 0,
     alive: true,
-    role: 'chaser' as const,  // everyone starts as chaser with gun
+    role: 'chaser' as const,
     flagTime: 0,
     flagHoldStart: null,
     kills: 0,
@@ -102,7 +116,7 @@ function makeInitialState(sessionMinutes: number): GameState {
     yPos: 0,
     speedMultiplier: 1,
     hasGun: true,
-    lastShotAt: 0,            // tracks cooldown properly in state (not as a mutation)
+    lastShotAt: 0,
   }))
 
   return {
@@ -115,17 +129,94 @@ function makeInitialState(sessionMinutes: number): GameState {
     startedAt: null,
     sessionDuration: sessionMinutes * 60 * 1000,
     worldSpeed: 1,
+    playerIndex,
+    lastKillEvent: null,
+    lastFlagEvent: null,
   }
 }
 
 let nextBulletId = 1000
 
-/* ============================ */
 function reducer(state: GameState, action: Action): GameState {
   if (action.type === 'START') return state
 
   if (action.type === 'ENABLE') {
     return { ...state, startedAt: Date.now() }
+  }
+
+  // ── Network sync: another player's position ──
+  if (action.type === 'SYNC_PLAYER') {
+    if (action.playerIndex === state.playerIndex) return state
+    return {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === action.playerIndex ? { ...p, ...action.data } : p
+      ),
+    }
+  }
+
+  // ── Network sync: a kill happened on another client ──
+  if (action.type === 'SYNC_KILL') {
+    const { victimIndex, killerIndex, respawnX, respawnZ, wasCarrier } = action
+    const newPlayers = state.players.map((p, i) => {
+      if (i === victimIndex) {
+        return {
+          ...p, x: respawnX, z: respawnZ,
+          alive: true, role: 'chaser' as const,
+          hasGun: true, isJumping: false,
+          jumpVelocity: 0, yPos: 0, lastShotAt: 0,
+          flagHoldStart: null,
+        }
+      }
+      if (i === killerIndex) {
+        return wasCarrier
+          ? { ...p, role: 'carrier' as const, hasGun: false, kills: p.kills + 1, flagHoldStart: Date.now() }
+          : { ...p, kills: p.kills + 1 }
+      }
+      return p
+    })
+    const killerPlayer = newPlayers[killerIndex]
+    const newFlag = wasCarrier
+      ? { x: killerPlayer?.x ?? state.flag.x, z: killerPlayer?.z ?? state.flag.z, carrierId: killerIndex }
+      : state.flag.carrierId === victimIndex
+        ? { ...state.flag, carrierId: null }
+        : state.flag
+    return { ...state, players: newPlayers, flag: newFlag }
+  }
+
+  // ── Network sync: flag was picked up / dropped on another client ──
+  if (action.type === 'SYNC_FLAG') {
+    const newPlayers = state.players.map((p, i) => {
+      if (i === action.flag.carrierId) return { ...p, role: 'carrier' as const }
+      if (p.role === 'carrier') return { ...p, role: 'chaser' as const }
+      return p
+    })
+    return { ...state, flag: action.flag, players: newPlayers }
+  }
+
+  // ── A player left the game permanently ──
+  if (action.type === 'PLAYER_LEFT') {
+    const { playerIndex } = action
+    const leaving = state.players[playerIndex]
+    const wasCarrier = state.flag.carrierId === playerIndex
+    const newPlayers = state.players.map((p, i) =>
+      i === playerIndex ? { ...p, alive: false, left: true } : p
+    )
+    const newFlag = wasCarrier
+      ? { x: leaving?.x ?? state.flag.x, z: leaving?.z ?? state.flag.z, carrierId: null }
+      : state.flag
+    return { ...state, players: newPlayers, flag: newFlag }
+  }
+
+  // ── Network sync: authoritative player names from server ──
+  if (action.type === 'SET_PLAYER_NAMES') {
+    const nameMap = new Map(action.names.map(n => [n.playerIndex, n.username]))
+    return {
+      ...state,
+      players: state.players.map((p, i) =>
+        nameMap.has(i) ? { ...p, name: nameMap.get(i)! } : p
+      ),
+    }
   }
 
   if (action.type === 'TICK') {
@@ -134,12 +225,15 @@ function reducer(state: GameState, action: Action): GameState {
 
     const now = Date.now()
     const newBullets: Bullet[] = []
+    let newKillEvent: KillEvent | null = null
+    let newFlagEvent: GameState['lastFlagEvent'] = null
 
     /* ============================
-       PLAYER MOVEMENT
+       PLAYER MOVEMENT — local player only
     ============================ */
     const players = state.players.map((p, i) => {
       if (!p.alive) return p
+      if (i !== state.playerIndex) return p
       const b = BINDINGS[i]
       if (!b) return p
 
@@ -162,7 +256,6 @@ function reducer(state: GameState, action: Action): GameState {
       x = clamp(x, -WORLD_CLAMP, WORLD_CLAMP)
       z = clamp(z, -WORLD_CLAMP, WORLD_CLAMP)
 
-      /* ---- Jump ---- */
       let yPos = p.yPos
       let jumpVelocity = p.jumpVelocity
       let isJumping = p.isJumping
@@ -177,7 +270,6 @@ function reducer(state: GameState, action: Action): GameState {
         if (yPos <= 0) { yPos = 0; jumpVelocity = 0; isJumping = false }
       }
 
-      /* ---- Obstacles ---- */
       for (const obs of state.obstacles) {
         const dx = x - obs.x
         const dz = z - obs.z
@@ -190,7 +282,6 @@ function reducer(state: GameState, action: Action): GameState {
         ) { x = prevX; z = prevZ }
       }
 
-      /* ---- Shooting (chasers only — carrier holds flag, not gun) ---- */
       let lastShotAt = p.lastShotAt ?? 0
       if (p.role !== 'carrier' && b.shoot && keys.has(b.shoot)) {
         if (now - lastShotAt > 350) {
@@ -227,7 +318,6 @@ function reducer(state: GameState, action: Action): GameState {
     ]
 
     for (const bullet of allBullets) {
-      // Drop expired or out-of-bounds bullets
       if (
         (bullet as any)._age >= BULLET_LIFE ||
         Math.abs(bullet.x) > WORLD_CLAMP ||
@@ -248,56 +338,30 @@ function reducer(state: GameState, action: Action): GameState {
         hit = true
         const shooterIdx = playersAfterHits.findIndex(p => p.id === bullet.ownerId)
         const victimIsCarrier = victim.id === flagAfterHits.carrierId
+        const respawn = randomRespawn()
 
         if (victimIsCarrier) {
-          /*
-           * Case A — flag carrier is shot
-           * Shooter: becomes new carrier, loses gun, flag time starts
-           * Victim:  respawns as chaser, gets gun back
-           */
-          const respawn = randomRespawn()
-
           playersAfterHits[vi] = {
-            ...victim,
-            ...respawn,
-            role: 'chaser',
-            hasGun: true,
-            isJumping: false,
-            jumpVelocity: 0,
-            yPos: 0,
-            lastShotAt: 0,
+            ...victim, ...respawn,
+            role: 'chaser', hasGun: true,
+            isJumping: false, jumpVelocity: 0, yPos: 0, lastShotAt: 0,
           }
-
           if (shooterIdx !== -1) {
             const shooter = playersAfterHits[shooterIdx]
             playersAfterHits[shooterIdx] = {
               ...shooter,
-              role: 'carrier',
-              hasGun: false,
+              role: 'carrier', hasGun: false,
               kills: shooter.kills + 1,
               flagHoldStart: Date.now(),
             }
             flagAfterHits = { x: shooter.x, z: shooter.z, carrierId: shooter.id }
           }
         } else {
-          /*
-           * Case B — a chaser is shot by another chaser
-           * Victim: respawns randomly, stays chaser, keeps gun
-           * Shooter: gets kill credit
-           */
-          const respawn = randomRespawn()
-
           playersAfterHits[vi] = {
-            ...victim,
-            ...respawn,
-            role: 'chaser',
-            hasGun: true,
-            isJumping: false,
-            jumpVelocity: 0,
-            yPos: 0,
-            lastShotAt: 0,
+            ...victim, ...respawn,
+            role: 'chaser', hasGun: true,
+            isJumping: false, jumpVelocity: 0, yPos: 0, lastShotAt: 0,
           }
-
           if (shooterIdx !== -1) {
             playersAfterHits[shooterIdx] = {
               ...playersAfterHits[shooterIdx],
@@ -306,7 +370,17 @@ function reducer(state: GameState, action: Action): GameState {
           }
         }
 
-        break // one bullet hits at most one player
+        // Record kill for network broadcast (bullets only belong to local player)
+        newKillEvent = {
+          victimIndex: vi,
+          killerIndex: state.playerIndex,
+          respawnX: respawn.x,
+          respawnZ: respawn.z,
+          wasCarrier: victimIsCarrier,
+          ts: now,
+        }
+
+        break
       }
 
       if (!hit) survivingBullets.push(bullet)
@@ -316,7 +390,6 @@ function reducer(state: GameState, action: Action): GameState {
        FLAG PICKUP + CARRY TICK
     ============================ */
     if (flagAfterHits.carrierId === null) {
-      // Any alive player walking over the flag picks it up
       for (let i = 0; i < playersAfterHits.length; i++) {
         const p = playersAfterHits[i]
         if (!p.alive) continue
@@ -324,16 +397,14 @@ function reducer(state: GameState, action: Action): GameState {
         const dz = p.z - flagAfterHits.z
         if (dx * dx + dz * dz < FLAG_PICKUP_R * FLAG_PICKUP_R) {
           flagAfterHits.carrierId = p.id
-          playersAfterHits[i] = {
-            ...p,
-            role: 'carrier',
-            flagHoldStart: Date.now(),
+          playersAfterHits[i] = { ...p, role: 'carrier', flagHoldStart: Date.now() }
+          if (p.id === state.playerIndex) {
+            newFlagEvent = { ts: now }
           }
           break
         }
       }
     } else {
-      // Move flag with carrier, tick hold time
       const ci = playersAfterHits.findIndex(p => p.id === flagAfterHits.carrierId)
       if (ci !== -1 && playersAfterHits[ci].alive) {
         flagAfterHits.x = playersAfterHits[ci].x
@@ -343,7 +414,6 @@ function reducer(state: GameState, action: Action): GameState {
           flagTime: playersAfterHits[ci].flagTime + dt * 1000,
         }
       } else {
-        // carrier is somehow gone — drop flag in place
         if (ci !== -1) {
           flagAfterHits.x = playersAfterHits[ci].x
           flagAfterHits.z = playersAfterHits[ci].z
@@ -365,21 +435,30 @@ function reducer(state: GameState, action: Action): GameState {
       bullets: survivingBullets,
       elapsed,
       flag: flagAfterHits,
+      lastKillEvent: newKillEvent ?? state.lastKillEvent,
+      lastFlagEvent: newFlagEvent ?? state.lastFlagEvent,
     }
   }
 
   return state
 }
 
-/* ============================ */
 export function useGameState({
   sessionMinutes,
   enabled,
+  playerIndex = 0,
+  playerName,
 }: {
   sessionMinutes: number
   enabled: boolean
+  playerIndex?: number
+  playerName?: string
 }) {
-  const [state, dispatch] = useReducer(reducer, sessionMinutes, makeInitialState)
+  const [state, dispatch] = useReducer(
+    reducer,
+    sessionMinutes,
+    (sm) => makeInitialState(sm, playerIndex, playerName ?? PLAYER_NAMES[playerIndex])
+  )
 
   const keysRef     = useRef<Set<string>>(new Set())
   const lastTimeRef = useRef<number>(performance.now())
@@ -413,5 +492,5 @@ export function useGameState({
     return () => cancelAnimationFrame(raf)
   }, [enabled])
 
-  return { state }
+  return { state, dispatch }
 }

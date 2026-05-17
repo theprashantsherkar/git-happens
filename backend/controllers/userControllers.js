@@ -12,7 +12,7 @@ const COOKIE_OPTIONS = {
 };
 
 const sendToken = (user, statusCode, res, message) => {
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '1d' });
     user.password = undefined; // strip password before sending
     return res.status(statusCode).cookie('token', token, COOKIE_OPTIONS).json({
         success: true,

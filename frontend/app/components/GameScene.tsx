@@ -128,24 +128,19 @@ export function GameScene({ state }: Props) {
       <SkyAndClouds />
       <Track />
 
-      {/* Flag — only visible when not being carried */}
       <FlagObject
         x={state.flag.x}
         z={state.flag.z}
         carrierId={state.flag.carrierId}
       />
 
-      {/* All players — PlayerMesh handles the full array internally */}
       <PlayerMesh players={state.players} />
 
-      {/* Bullets */}
       <BulletMesh bullets={state.bullets} />
 
-      {/* Obstacles */}
       <ObstacleMesh obstacles={state.obstacles} />
 
-      {/* Camera follows player 0 (Blue) */}
-      <CameraRig players={state.players} />
+      <CameraRig players={state.players} playerIndex={state.playerIndex} />
     </Canvas>
   )
 }

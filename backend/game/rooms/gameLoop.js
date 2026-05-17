@@ -71,6 +71,7 @@ export async function finalizeMatch(room) {
     )
 
     for (const player of players) {
+        if (!player.userId) continue
         const user = await User.findById(player.userId)
         if (!user) continue
 

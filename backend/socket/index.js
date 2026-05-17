@@ -14,6 +14,7 @@ export default function registerSocketHandlers(io) {
                 return next(new Error("Invalid token"));
             }
             socket.userId = decoded.id;
+            socket.username = decoded.username || 'Player';
             next();
         } catch (err) {
             return next(new Error("Invalid token"));

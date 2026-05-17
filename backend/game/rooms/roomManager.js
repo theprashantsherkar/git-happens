@@ -19,3 +19,7 @@ export function createRoom(roomId) {
 export function getRoom(roomId) {
     return rooms[roomId]
 }
+
+export function deleteRoom(roomId) {
+    delete rooms[roomId]
+}

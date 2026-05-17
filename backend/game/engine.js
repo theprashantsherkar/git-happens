@@ -2,6 +2,7 @@ import { MAP_WIDTH, MAP_HEIGHT, RESPAWN_TIME } from "./constant.js"
 
 export function handleKill(io, roomId, room, killer, victim) {
     victim.isAlive = false
+    killer.kills = (killer.kills || 0) + 1
 
     if (room.flag.holderId === victim.id) {
         room.flag.holderId = null

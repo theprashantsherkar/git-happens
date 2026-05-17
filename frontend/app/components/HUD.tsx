@@ -1,17 +1,18 @@
 'use client'
 import { useRef, useEffect, useState } from 'react'
 import { Player } from '../types'
-import { PLAYER_COLORS } from '../constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+export type ChatMsg = { id: number; name: string; text: string }
+
 type Props = {
   players: Player[]
   elapsed: number
   sessionDuration: number
   worldSpeed: number
+  chatMessages?: ChatMsg[]
+  onSendMessage?: (text: string) => void
 }
-
-type ChatMsg = { id: number; name: string; color: string; text: string }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMs(ms: number) {
@@ -80,6 +81,7 @@ function Minimap({ players }: { players: Player[] }) {
 
     // Player dots
     players.forEach(p => {
+      if (p.left) return  // removed from game
       const { x, y } = toMM(p.x, p.z)
       const isCarrier = p.role === 'carrier' && p.alive
 
@@ -134,26 +136,33 @@ function Minimap({ players }: { players: Player[] }) {
   )
 }
 
-// ─── Chat panel ───────────────────────────────────────────────────────────────
-let _chatId = 0
-const SEED_MSGS: ChatMsg[] = [
-  { id: _chatId++, name: 'Red',   color: PLAYER_COLORS[1], text: 'I have the flag!' },
-  { id: _chatId++, name: 'Green', color: PLAYER_COLORS[2], text: 'not for long 😈' },
-]
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function usernameColor(name: string) {
+  const palette = ['#3B82F6', '#EF4444', '#22C55E', '#EAB308', '#A855F7', '#F97316']
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffff
+  return palette[h % palette.length]
+}
 
-function ChatPanel({ players }: { players: Player[] }) {
-  const [msgs, setMsgs] = useState<ChatMsg[]>(SEED_MSGS)
+// ─── Chat panel ───────────────────────────────────────────────────────────────
+function ChatPanel({
+  messages,
+  onSend,
+}: {
+  messages: ChatMsg[]
+  onSend: (text: string) => void
+}) {
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [msgs])
+  }, [messages])
 
   const send = () => {
     const text = input.trim()
     if (!text) return
-    setMsgs(m => [...m, { id: _chatId++, name: 'Blue', color: PLAYER_COLORS[0], text }])
+    onSend(text)
     setInput('')
   }
 
@@ -167,6 +176,7 @@ function ChatPanel({ players }: { players: Player[] }) {
       fontFamily: '"Courier New", monospace',
       backdropFilter: 'blur(8px)',
       display: 'flex', flexDirection: 'column',
+      pointerEvents: 'auto',
     }}>
       <div style={{
         fontSize: 10, letterSpacing: 3, color: '#FFD700',
@@ -176,9 +186,14 @@ function ChatPanel({ players }: { players: Player[] }) {
         💬 ROOM CHAT
       </div>
       <div style={{ overflowY: 'auto', maxHeight: 110, padding: '6px 10px', scrollbarWidth: 'none' }}>
-        {msgs.map(m => (
+        {messages.length === 0 && (
+          <div style={{ color: '#ffffff22', fontSize: 10, textAlign: 'center', padding: '8px 0' }}>
+            No messages yet
+          </div>
+        )}
+        {messages.map(m => (
           <div key={m.id} style={{ marginBottom: 4 }}>
-            <span style={{ color: m.color, fontWeight: 'bold', fontSize: 10 }}>{m.name}: </span>
+            <span style={{ color: usernameColor(m.name), fontWeight: 'bold', fontSize: 10 }}>{m.name}: </span>
             <span style={{ color: '#d1d5db', fontSize: 10 }}>{m.text}</span>
           </div>
         ))}
@@ -211,7 +226,7 @@ function ChatPanel({ players }: { players: Player[] }) {
 }
 
 // ─── Main HUD export ──────────────────────────────────────────────────────────
-export function HUD({ players, elapsed, sessionDuration }: Props) {
+export function HUD({ players, elapsed, sessionDuration, chatMessages = [], onSendMessage }: Props) {
   const remaining = Math.max(0, sessionDuration - elapsed)
   const urgent    = remaining < 30_000
   const sorted    = [...players].sort((a, b) => b.flagTime - a.flagTime)
@@ -220,7 +235,7 @@ export function HUD({ players, elapsed, sessionDuration }: Props) {
   return (
     <>
       {/* ── Chat — top left ── */}
-      <ChatPanel players={players} />
+      <ChatPanel messages={chatMessages} onSend={onSendMessage ?? (() => {})} />
 
       {/* ── Timer — top centre ── */}
       <div style={{
@@ -278,10 +293,12 @@ export function HUD({ players, elapsed, sessionDuration }: Props) {
               border: isHolder ? `1px solid ${p.color}44` : '1px solid transparent',
             }}>
               <span style={{ color: rank === 0 ? '#FFD700' : '#FFFFFF33', fontSize: 10, width: 14 }}>{rank + 1}</span>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, boxShadow: isHolder ? `0 0 8px ${p.color}` : 'none', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 12, color: isHolder ? p.color : p.alive ? 'white' : '#FFFFFF44' }}>{p.name}</span>
-              <span style={{ fontSize: 12, color: isHolder ? '#FFD700' : '#FFFFFF77', fontVariantNumeric: 'tabular-nums' }}>{fmtMs(p.flagTime)}</span>
-              {isHolder && <span style={{ fontSize: 11 }}>🚩</span>}
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.left ? '#444' : p.color, boxShadow: isHolder ? `0 0 8px ${p.color}` : 'none', flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 12, color: p.left ? '#FFFFFF22' : isHolder ? p.color : p.alive ? 'white' : '#FFFFFF44' }}>
+                {p.name}{p.left ? <span style={{ fontSize: 10, color: '#FF6666', marginLeft: 5 }}>✕ left</span> : null}
+              </span>
+              <span style={{ fontSize: 12, color: isHolder ? '#FFD700' : '#FFFFFF44', fontVariantNumeric: 'tabular-nums' }}>{fmtMs(p.flagTime)}</span>
+              {isHolder && !p.left && <span style={{ fontSize: 11 }}>🚩</span>}
             </div>
           )
         })}
