@@ -4,20 +4,20 @@ const userModel = new mongoose.Schema({
     username: {
         type: String,
         required: true,
-        unique:true
+        unique: true
     },
     email: {
         type: String,
         required: true,
-        unique:true
+        unique: true
     },
     friends: {
         type: [mongoose.Schema.Types.ObjectId],
-        ref:"User"
+        ref: "User"
     },
     password: {
         type: String,
-        required:true
+        required: true
     },
     totalKills: {
         type: Number,
@@ -33,9 +33,11 @@ const userModel = new mongoose.Schema({
     },
     createdAt: {
         type: Date,
-        default: new Date(Date.now())
+        default: Date.now
     }
 })
 
+// Compound index for fast global leaderboard sorting
+userModel.index({ totalWins: -1, totalKills: -1 });
 
 export const User = mongoose.model("User", userModel)

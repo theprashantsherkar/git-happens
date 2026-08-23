@@ -24,6 +24,10 @@ export function getRoom(roomId) {
     return rooms[roomId]
 }
 
+export function getAllRooms() {
+    return rooms
+}
+
 export function deleteRoom(roomId) {
     if (rooms[roomId]?.interval) {
         clearInterval(rooms[roomId].interval)

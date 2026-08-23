@@ -20,6 +20,23 @@ async function startServer() {
             },
         });
 
+        // Multi-Instance Scalability: Attach Redis Socket.IO adapter if REDIS_URL environment variable is provided
+        if (process.env.REDIS_URL) {
+            try {
+                const { createAdapter } = await import("@socket.io/redis-adapter");
+                const { createClient } = await import("redis");
+
+                const pubClient = createClient({ url: process.env.REDIS_URL });
+                const subClient = pubClient.duplicate();
+
+                await Promise.all([pubClient.connect(), subClient.connect()]);
+                io.adapter(createAdapter(pubClient, subClient));
+                console.log("Socket.IO Redis Adapter successfully attached for horizontal scaling");
+            } catch (redisErr) {
+                console.warn("REDIS_URL set but Redis adapter failed to initialize. Falling back to in-memory adapter:", redisErr.message);
+            }
+        }
+
         registerSocketHandlers(io);
 
         server.listen(PORT, () => {

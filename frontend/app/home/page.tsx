@@ -82,7 +82,10 @@ export default function HomePage() {
       try {
         const { data } = await axios.get(
           `${BACKEND_URI}app/api/user-routes/get-user-profile/${userId}`,
-          { withCredentials: true }
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            withCredentials: true,
+          }
         )
         if (!cancelled && data?.user) {
           const u = data.user
@@ -111,13 +114,18 @@ export default function HomePage() {
 
     async function loadLeaderboard() {
       try {
+        const token = getStoredToken()
         const { data } = await axios.get(
           `${BACKEND_URI}app/api/leaderboard/global`,
-          { withCredentials: true }
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            withCredentials: true,
+          }
         )
-        if (!cancelled && data?.leaderboard) {
+        const list = data?.leaderboard || (Array.isArray(data) ? data : []);
+        if (!cancelled && Array.isArray(list)) {
           setLeaders(
-            data.leaderboard.map((u: any, i: number) => ({
+            list.map((u: any, i: number) => ({
               rank: i + 1,
               username: u.username,
               totalWins: u.totalWins ?? 0,

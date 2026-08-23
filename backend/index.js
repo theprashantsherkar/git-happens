@@ -24,7 +24,7 @@ app.use(cors({
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(null, true); // Permissive CORS for game client connections
+            callback(new Error("Not allowed by CORS"));
         }
     },
     credentials: true,

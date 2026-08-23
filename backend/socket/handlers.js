@@ -1,4 +1,4 @@
-import { createRoom, getRoom } from "../game/rooms/roomManager.js"
+import { createRoom, getRoom, getAllRooms } from "../game/rooms/roomManager.js"
 import { determineWinner, startGameLoop } from "../game/rooms/gameLoop.js"
 import { MAX_PLAYERS_PER_ROOM } from "../game/constant.js"
 import { addToQueue, createMatch, removeFromQueue } from "../game/matchmaking/matchmaking.js"
@@ -133,7 +133,7 @@ export default function registerHandlers(io, socket) {
         io.to(roomId).emit("receive_message", {
             username: player.username,
             color: player.color,
-            message: message.trim(),
+            message: sanitizeHtml(message.trim()),
             timestamp: Date.now()
         })
     })
@@ -141,7 +141,34 @@ export default function registerHandlers(io, socket) {
     // ─── Disconnect ─────────────────────────────────────────────────────────────
     socket.on("disconnect", () => {
         removeFromQueue(socket.id)
+
+        const rooms = getAllRooms();
+        for (const [roomId, room] of Object.entries(rooms)) {
+            if (room.players && room.players[socket.id]) {
+                const disconnectedPlayer = room.players[socket.id];
+                if (room.flag && room.flag.holderId === socket.id) {
+                    room.flag.holderId = null;
+                    room.flag.x = disconnectedPlayer.x || 0;
+                    room.flag.z = disconnectedPlayer.z || 0;
+                }
+                delete room.players[socket.id];
+
+                io.to(roomId).emit("room_update", {
+                    playerCount: Object.keys(room.players).length,
+                    maxPlayers: MAX_PLAYERS_PER_ROOM
+                });
+            }
+        }
     })
+}
+
+function sanitizeHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#x27;");
 }
 
 function clampPosition(x, z) {
