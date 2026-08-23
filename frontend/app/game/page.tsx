@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSocket } from "../lib/socket";
+import { getStoredToken } from "../lib/auth";
 import { GameScene } from "../components/GameScene";
 import { HUD } from "../components/HUD";
 import { EndScreen } from "../components/EndScreen";
@@ -87,7 +88,7 @@ function ActiveGame({
 
     const getUsername = (): string => {
       try {
-        const token = localStorage.getItem("token");
+        const token = getStoredToken();
         if (!token) return `Player_${socket.id?.slice(0, 4) ?? "anon"}`;
         const payload = JSON.parse(atob(token.split(".")[1]));
         return payload.username || payload.name || `Player_${socket.id?.slice(0, 4)}`;
@@ -117,11 +118,8 @@ function ActiveGame({
 
       const currentSocketId = socket.id || socketId;
       const myServerPlayer = state.players?.find((p: any) => String(p.id) === String(currentSocketId));
-      if (myServerPlayer) {
-        // Sync local position reference with server authoritative position
-        if (!myPosRef.current) {
-          myPosRef.current = { x: myServerPlayer.x, z: myServerPlayer.z, angle: myServerPlayer.angle || 0 };
-        }
+      if (myServerPlayer && !myPosRef.current) {
+        myPosRef.current = { x: myServerPlayer.x, z: myServerPlayer.z, angle: myServerPlayer.angle || 0 };
       }
     });
 
@@ -158,18 +156,19 @@ function ActiveGame({
     };
   }, [duration, mode, room, socketId]);
 
-  // ── 2. Real-Time Movement Input Loop (20 Hz) ────────────────────────────────
+  // ── 2. Real-Time Keyboard Movement Loop (20 Hz) ──────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't register movement keys if user is typing inside an input element (e.g. Chat)
       if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
         return;
       }
       keysRef.current.add(e.code);
+      keysRef.current.add(e.key.toLowerCase());
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current.delete(e.code);
+      keysRef.current.delete(e.key.toLowerCase());
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -182,19 +181,24 @@ function ActiveGame({
         const socket = getSocket();
         const activeRoomId = roomIdRef.current;
         const currentRoomState = roomStateRef.current;
-        if (!socket || !activeRoomId || !currentRoomState?.players) return;
+        if (!socket || !activeRoomId || !currentRoomState?.players?.length) return;
 
         const currentSocketId = socket.id || socketId;
-        const myPlayer = currentRoomState.players.find((p: any) => String(p.id) === String(currentSocketId));
+        const myPlayer = currentRoomState.players.find((p: any) => String(p.id) === String(currentSocketId))
+          || currentRoomState.players[0];
         if (!myPlayer || !myPlayer.alive) return;
 
         const keys = keysRef.current;
-        const isForward = keys.has("KeyW") || keys.has("ArrowUp");
-        const isBackward = keys.has("KeyS") || keys.has("ArrowDown");
-        const isTurnLeft = keys.has("KeyA") || keys.has("ArrowLeft");
-        const isTurnRight = keys.has("KeyD") || keys.has("ArrowRight");
+        const isForward  = keys.has("KeyW") || keys.has("w") || keys.has("W") || keys.has("ArrowUp") || keys.has("arrowup");
+        const isBackward = keys.has("KeyS") || keys.has("s") || keys.has("S") || keys.has("ArrowDown") || keys.has("arrowdown");
+        const isTurnLeft = keys.has("KeyA") || keys.has("a") || keys.has("A") || keys.has("ArrowLeft") || keys.has("arrowleft");
+        const isTurnRight= keys.has("KeyD") || keys.has("d") || keys.has("D") || keys.has("ArrowRight") || keys.has("arrowright");
 
-        if (!isForward && !isBackward && !isTurnLeft && !isTurnRight) return;
+        if (!isForward && !isBackward && !isTurnLeft && !isTurnRight) {
+          // Keep local prediction in sync with server state when idle
+          myPosRef.current = { x: myPlayer.x, z: myPlayer.z, angle: myPlayer.angle || 0 };
+          return;
+        }
 
         let currentPos = myPosRef.current || { x: myPlayer.x, z: myPlayer.z, angle: myPlayer.angle || 0 };
         let angle = currentPos.angle;

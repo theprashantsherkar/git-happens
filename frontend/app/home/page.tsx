@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMusic } from "../hooks/useAudio";
 import axios from "axios";
 import { BACKEND_URI } from "../page";
+import { getStoredToken, clearStoredToken } from "../lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Profile = {
@@ -66,7 +67,7 @@ export default function HomePage() {
     let cancelled = false
 
     async function loadProfile() {
-      const token = localStorage.getItem("token")
+      const token = getStoredToken()
       if (!token) { router.push("/"); return }
 
       let userId: string
@@ -142,8 +143,9 @@ export default function HomePage() {
         `${BACKEND_URI}app/api/user-routes/logout`,
         { withCredentials: true }
       )
-      if (data.success) localStorage.removeItem("token")
+      if (data.success) clearStoredToken()
     } catch {}
+    clearStoredToken()
     router.push("/")
   }
 

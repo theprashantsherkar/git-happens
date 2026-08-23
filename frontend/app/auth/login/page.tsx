@@ -812,7 +812,10 @@ export default function LoginPage() {
     }
 
     if (res.data.token) {
-      localStorage.setItem("token", res.data.token);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("token", res.data.token);
+        localStorage.setItem("token", res.data.token);
+      }
       window.location.href = "/home";
     }
   } catch (err:any) {

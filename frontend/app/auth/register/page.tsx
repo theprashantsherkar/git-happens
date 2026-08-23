@@ -87,7 +87,10 @@ export default function RegisterPage() {
         return;
       }
       if (data.token) {
-        localStorage.setItem("token", data.token);
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("token", data.token);
+          localStorage.setItem("token", data.token);
+        }
         setSuccess(true);
         setTimeout(() => { window.location.href = "/home"; }, 2000);
       }

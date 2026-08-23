@@ -45,7 +45,10 @@ export default function PlayPage() {
     })
 
     if (data.success) {
-      localStorage.removeItem("token");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("token");
+        localStorage.removeItem("token");
+      }
       router.push("/");
     }
   }
