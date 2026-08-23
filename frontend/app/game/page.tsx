@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSocket } from "../lib/socket";
 import { GameScene } from "../components/GameScene";
 import { HUD } from "../components/HUD";
 import { EndScreen } from "../components/EndScreen";
 import WaitingRoom from "../components/WaitingRoom";
+
+export const dynamic = "force-dynamic";
 
 // ─── Countdown ────────────────────────────────────────────────────────────────
 function FlagCountdown({ onDone }: { onDone: () => void }) {
@@ -30,7 +32,7 @@ function FlagCountdown({ onDone }: { onDone: () => void }) {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [onDone]);
 
   return (
     <div style={{
@@ -84,17 +86,12 @@ function ActiveGame({
       }
     };
 
-    // Fix: register ALL event listeners BEFORE connecting / emitting
-    // Previously game_start was only listened inside the "connect" callback,
-    // so if the event fired before connect re-triggered it was missed.
-
     socket.on("room_update", ({ playerCount: count }: { playerCount: number }) => {
       setPlayerCount(count);
     });
 
     socket.on("match_found", ({ roomId }: { roomId: string }) => {
       console.log("Match found:", roomId);
-      // Fix: store the real roomId assigned by the server
       roomIdRef.current = roomId;
     });
 
@@ -116,17 +113,14 @@ function ActiveGame({
       const username = getUsername();
 
       if (mode === "random") {
-        // Fix: pass duration so server sets correct game length
         socket.emit("find_match", { duration });
       }
 
       if (room) {
-        // Fix: pass username — backend was receiving undefined
         socket.emit("join_room", { roomId: room, duration, username });
       }
     };
 
-    // If socket is already connected (e.g. hot reload) emit immediately
     if (socket.connected) {
       joinGame();
     } else {
@@ -141,7 +135,7 @@ function ActiveGame({
       socket.off("room_state");
       socket.off("game_over");
     };
-  }, []);
+  }, [duration, mode, room]);
 
   // ── Waiting screen ─────────────────────────────────────────────────────────
   if (!gameStarted) {
@@ -174,7 +168,6 @@ function ActiveGame({
       ) : (
         <>
           <div className="w-screen h-screen">
-            {/* Fix: roomState.Duration (capital D) matches what gameLoop emits */}
             <GameScene state={roomState} />
           </div>
           <HUD
@@ -193,8 +186,7 @@ function ActiveGame({
   );
 }
 
-// ─── Root page ────────────────────────────────────────────────────────────────
-export default function GamePage() {
+function GamePageContent() {
   const params = useSearchParams();
   const [sessionMinutes, setSessionMinutes] = useState<number | null>(null);
   const [key, setKey] = useState(0);
@@ -220,5 +212,20 @@ export default function GamePage() {
       sessionMinutes={sessionMinutes}
       onRestart={handleRestart}
     />
+  );
+}
+
+// ─── Root page ────────────────────────────────────────────────────────────────
+export default function GamePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-[#0d0221] font-mono text-lg text-[#ffd700]">
+          Loading Game Match...
+        </div>
+      }
+    >
+      <GamePageContent />
+    </Suspense>
   );
 }
