@@ -71,7 +71,9 @@ function ActiveGame({
   const [socketId, setSocketId] = useState<string>("");
 
   const roomIdRef = useRef<string | null>(room || null);
+  const roomStateRef = useRef<any>(null);
   const keysRef = useRef<Set<string>>(new Set());
+  const myPosRef = useRef<{ x: number; z: number; angle: number } | null>(null);
 
   // ── 1. Setup Socket Listeners & Matchmaking ────────────────────────────────
   useEffect(() => {
@@ -110,7 +112,14 @@ function ActiveGame({
     });
 
     socket.on("room_state", (state: any) => {
+      roomStateRef.current = state;
       setRoomState(state);
+
+      const currentSocketId = socket.id || socketId;
+      const myServerPlayer = state.players?.find((p: any) => String(p.id) === String(currentSocketId));
+      if (myServerPlayer && !myPosRef.current) {
+        myPosRef.current = { x: myServerPlayer.x, z: myServerPlayer.z, angle: myServerPlayer.angle || 0 };
+      }
     });
 
     socket.on("game_over", ({ winner: w }: any) => {
@@ -144,9 +153,9 @@ function ActiveGame({
       socket.off("room_state");
       socket.off("game_over");
     };
-  }, [duration, mode, room]);
+  }, [duration, mode, room, socketId]);
 
-  // ── 2. Keyboard Input & Real-Time Movement Loop ─────────────────────────────
+  // ── 2. Real-Time Movement Input Loop (20 Hz) ────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysRef.current.add(e.code);
@@ -164,10 +173,11 @@ function ActiveGame({
       movementInterval = setInterval(() => {
         const socket = getSocket();
         const activeRoomId = roomIdRef.current;
-        if (!socket || !activeRoomId || !roomState?.players) return;
+        const currentRoomState = roomStateRef.current;
+        if (!socket || !activeRoomId || !currentRoomState?.players) return;
 
         const currentSocketId = socket.id || socketId;
-        const myPlayer = roomState.players.find((p: any) => p.id === currentSocketId);
+        const myPlayer = currentRoomState.players.find((p: any) => String(p.id) === String(currentSocketId));
         if (!myPlayer || !myPlayer.alive) return;
 
         const keys = keysRef.current;
@@ -178,15 +188,16 @@ function ActiveGame({
 
         if (!isForward && !isBackward && !isTurnLeft && !isTurnRight) return;
 
-        let angle = myPlayer.angle || 0;
+        let currentPos = myPosRef.current || { x: myPlayer.x, z: myPlayer.z, angle: myPlayer.angle || 0 };
+        let angle = currentPos.angle;
         const turnSpeed = 0.15;
-        const moveSpeed = 1.2;
+        const moveSpeed = 1.4;
 
         if (isTurnLeft) angle += turnSpeed;
         if (isTurnRight) angle -= turnSpeed;
 
-        let x = myPlayer.x;
-        let z = myPlayer.z;
+        let x = currentPos.x;
+        let z = currentPos.z;
 
         if (isForward) {
           x += Math.sin(angle) * moveSpeed;
@@ -197,11 +208,11 @@ function ActiveGame({
           z -= Math.cos(angle) * moveSpeed;
         }
 
-        // Clamp to map boundary
         const HALF_MAP = 74;
         x = Math.max(-HALF_MAP, Math.min(HALF_MAP, x));
         z = Math.max(-HALF_MAP, Math.min(HALF_MAP, z));
 
+        myPosRef.current = { x, z, angle };
         socket.emit("move", { roomId: activeRoomId, x, z, angle });
       }, 50); // 20 Hz movement emission
     }
@@ -211,7 +222,7 @@ function ActiveGame({
       window.removeEventListener("keyup", handleKeyUp);
       if (movementInterval) clearInterval(movementInterval);
     };
-  }, [gameStarted, roomState, socketId]);
+  }, [gameStarted, socketId]);
 
   // ── Waiting screen ─────────────────────────────────────────────────────────
   if (!gameStarted) {
@@ -251,6 +262,7 @@ function ActiveGame({
             elapsed={roomState.elapsed || 0}
             sessionDuration={roomState.Duration || 0}
             worldSpeed={roomState.worldSpeed || 1}
+            roomId={roomIdRef.current || undefined}
           />
         </>
       )}
