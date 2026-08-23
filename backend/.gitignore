@@ -1,3 +1,15 @@
-/database/.env
+# dependencies
 /node_modules
+node_modules/
+
+# environment variables
 .env
+.env.*
+database/.env
+*.env
+
+# logs & OS files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store

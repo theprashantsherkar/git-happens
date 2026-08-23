@@ -287,3 +287,24 @@ export async function updateUserProfile(req, res) {
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 }
+
+// ─── GET /me (protected) ───────────────────────────────────────────────────────
+
+export async function getMe(req, res) {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            user,
+        });
+    } catch (error) {
+        console.error('getMe:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+}
