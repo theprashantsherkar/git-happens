@@ -1,7 +1,7 @@
 export type PlayerRole = 'carrier' | 'chaser'
 
 export type Player = {
-  id: number
+  id: number | string
   name: string
   color: string
   hasGun: boolean 
@@ -23,15 +23,15 @@ export type Player = {
 }
 
 export type Obstacle = {
-  id: number
+  id: number | string
   x: number
   z: number
   type: 'tree' | 'rock' | 'log' | 'barrel' | 'pothole' | 'animal' | 'river'
 }
 
 export type Bullet = {
-  id: number
-  ownerId: number
+  id: number | string
+  ownerId: number | string
   x: number
   z: number
   vx: number
@@ -41,7 +41,7 @@ export type Bullet = {
 export type Flag = {
   x: number
   z: number
-  carrierId: number | null
+  carrierId: number | string | null
 }
 
 export type GamePhase = 'lobby' | 'playing' | 'ended'

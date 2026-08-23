@@ -10,7 +10,7 @@ import { CameraRig } from './CameraRig'
 import { PlayerMesh, BulletMesh } from './PlayerMesh'
 
 // ─── Flag mesh in world ───────────────────────────────────────────────────────
-function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: number | null }) {
+function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: number | string | null }) {
   const poleRef = useRef<THREE.Mesh>(null)
 
   useFrame(({ clock }) => {
@@ -114,11 +114,9 @@ function SkyAndClouds() {
 }
 
 // ─── Main scene export ────────────────────────────────────────────────────────
-type Props = { state: GameState }
-export function GameScene({ state }: Props) {
+type Props = { state: GameState; mySocketId?: string }
 
-  // 🛑 Hard guard
-  console.log("GameScene state:", state)
+export function GameScene({ state, mySocketId }: Props) {
   return (
     <Canvas
       shadows
@@ -147,7 +145,7 @@ export function GameScene({ state }: Props) {
       <ObstacleMesh obstacles={state.obstacles ?? []} />
 
       {/* Camera */}
-      <CameraRig players={state.players ?? []} />
+      <CameraRig players={state.players ?? []} mySocketId={mySocketId} />
     </Canvas>
   )
 }

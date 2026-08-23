@@ -1,9 +1,16 @@
 import { createRoom, getRoom } from "../game/rooms/roomManager.js"
 import { determineWinner, startGameLoop } from "../game/rooms/gameLoop.js"
-import { MAX_PLAYERS_PER_ROOM, MAX_MOVE_DISTANCE, MAP_HEIGHT, MAP_WIDTH } from "../game/constant.js"
+import { MAX_PLAYERS_PER_ROOM, MAX_MOVE_DISTANCE } from "../game/constant.js"
 import { addToQueue, createMatch, removeFromQueue } from "../game/matchmaking/matchmaking.js"
 
 const PLAYER_COLORS = ["#ff2d78", "#00f5ff", "#ffd700", "#3dba4e"];
+
+const SPAWN_POINTS = [
+    { x: -25, z:  25, angle: 0 },
+    { x:  25, z:  25, angle: Math.PI / 2 },
+    { x: -25, z: -25, angle: -Math.PI / 2 },
+    { x:  25, z: -25, angle: Math.PI }
+];
 
 export default function registerHandlers(io, socket) {
 
@@ -16,16 +23,16 @@ export default function registerHandlers(io, socket) {
         }
 
         const colorIndex = Object.keys(room.players).length;
+        const spawn = SPAWN_POINTS[colorIndex % SPAWN_POINTS.length];
 
         room.players[socket.id] = {
             id: socket.id,
-            // Fix: was receiving 'username' but callers were sending 'duration' as username
             username: username || socket.username || `Player ${colorIndex + 1}`,
             color: PLAYER_COLORS[colorIndex],
-            x: Math.random() * MAP_WIDTH,
-            z: Math.random() * MAP_HEIGHT,   // Fix: use z not y — GameScene reads z
+            x: spawn.x,
+            z: spawn.z,
             yPos: 0,
-            angle: 0,
+            angle: spawn.angle,
             possessionTime: 0,
             hasFlag: false,
             hasWeapon: true,
@@ -38,18 +45,13 @@ export default function registerHandlers(io, socket) {
 
         socket.emit("joined_successfully", { playerId: socket.id })
 
-        // Broadcast updated player count to the room
         io.to(roomId).emit("room_update", {
             playerCount: Object.keys(room.players).length,
             maxPlayers: MAX_PLAYERS_PER_ROOM
         })
 
         if (Object.keys(room.players).length >= MAX_PLAYERS_PER_ROOM) {
-            // Set duration from the room join params
             room.gameDuration = (parseInt(duration) || 5) * 60 * 1000;
-
-            // Fix: emit game_start BEFORE starting the loop so clients
-            // transition out of WaitingRoom before state ticks arrive
             io.to(roomId).emit("game_start")
             startGameLoop(io, roomId, room)
         }
@@ -57,18 +59,16 @@ export default function registerHandlers(io, socket) {
 
     // ─── Matchmaking ────────────────────────────────────────────────────────────
     socket.on("find_match", ({ duration }) => {
-        // Remove from any existing queue slot first (prevents duplicates on reconnect)
         removeFromQueue(socket.id)
 
         addToQueue({
             socketId: socket.id,
             userId: socket.userId,
-            // Fix: username now attached to socket by auth middleware
             username: socket.username || `Player_${socket.id.slice(0, 4)}`
         });
 
         const players = createMatch();
-        if (!players) return;  // not enough players yet, stay in queue
+        if (!players) return;  // Stay in queue until 4 players match
 
         const roomId = `room_${Date.now()}`;
         const room = createRoom(roomId);
@@ -79,15 +79,16 @@ export default function registerHandlers(io, socket) {
             if (!s) return;
 
             s.join(roomId);
+            const spawn = SPAWN_POINTS[index % SPAWN_POINTS.length];
 
             room.players[p.socketId] = {
                 id: p.socketId,
                 username: p.username,
                 color: PLAYER_COLORS[index],
-                x: Math.random() * MAP_WIDTH,
-                z: Math.random() * MAP_HEIGHT,  // Fix: z not y
+                x: spawn.x,
+                z: spawn.z,
                 yPos: 0,
-                angle: 0,
+                angle: spawn.angle,
                 possessionTime: 0,
                 hasFlag: false,
                 hasWeapon: true,
@@ -97,8 +98,6 @@ export default function registerHandlers(io, socket) {
             };
         });
 
-        // Fix: emit match_found first, then game_start after a short delay
-        // so all clients have time to register their game_start listener
         io.to(roomId).emit("match_found", { roomId });
 
         setTimeout(() => {
@@ -151,8 +150,9 @@ export default function registerHandlers(io, socket) {
 }
 
 function clampPosition(x, z) {
+    const HALF_MAP = 74;
     return {
-        x: Math.max(0, Math.min(MAP_WIDTH, x)),
-        z: Math.max(0, Math.min(MAP_HEIGHT, z))
+        x: Math.max(-HALF_MAP, Math.min(HALF_MAP, x)),
+        z: Math.max(-HALF_MAP, Math.min(HALF_MAP, z))
     }
 }

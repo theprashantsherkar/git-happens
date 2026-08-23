@@ -204,7 +204,7 @@ function SinglePlayer({ player }: { player: Player }) {
 export function BulletMesh({
   bullets
 }: {
-  bullets: { id: number; x: number; z: number; vx: number; vz: number }[]
+  bullets: { id: number | string; x: number; z: number; vx: number; vz: number }[]
 }) {
   if (!bullets?.length) return null
 

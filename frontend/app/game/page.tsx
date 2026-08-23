@@ -10,29 +10,30 @@ import WaitingRoom from "../components/WaitingRoom";
 
 export const dynamic = "force-dynamic";
 
-// ─── Countdown ────────────────────────────────────────────────────────────────
+// ─── Countdown Overlay ────────────────────────────────────────────────────────
 function FlagCountdown({ onDone }: { onDone: () => void }) {
   const [count, setCount] = useState(5);
   const [phase, setPhase] = useState<"counting" | "go">("counting");
-  const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     const interval = setInterval(() => {
       setCount(prev => {
         if (prev <= 1) {
           clearInterval(interval);
-          if (!doneRef.current) {
-            doneRef.current = true;
-            setPhase("go");
-            setTimeout(onDone, 500);
-          }
+          setPhase("go");
+          setTimeout(() => {
+            onDoneRef.current();
+          }, 500);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [onDone]);
+  }, []); // Empty deps ensure timer runs uninterrupted by incoming room_state ticks
 
   return (
     <div style={{
@@ -67,14 +68,21 @@ function ActiveGame({
   const [winner, setWinner] = useState<any>(null);
   const [countdownDone, setCountdownDone] = useState(false);
   const [playerCount, setPlayerCount] = useState(0);
+  const [socketId, setSocketId] = useState<string>("");
 
-  // Track the roomId we actually joined so we can send moves to the right room
   const roomIdRef = useRef<string | null>(room || null);
+  const keysRef = useRef<Set<string>>(new Set());
 
+  // ── 1. Setup Socket Listeners & Matchmaking ────────────────────────────────
   useEffect(() => {
     const socket = getSocket();
 
-    // ── Helper to decode username from JWT stored in localStorage ──────────
+    const updateSocketId = () => {
+      if (socket.id) setSocketId(socket.id);
+    };
+
+    updateSocketId();
+
     const getUsername = (): string => {
       try {
         const token = localStorage.getItem("token");
@@ -97,6 +105,7 @@ function ActiveGame({
 
     socket.on("game_start", () => {
       console.log("game_start received — starting game");
+      updateSocketId();
       setGameStarted(true);
     });
 
@@ -108,8 +117,8 @@ function ActiveGame({
       setWinner(w);
     });
 
-    // ── Connect and emit join intent ─────────────────────────────────────────
     const joinGame = () => {
+      updateSocketId();
       const username = getUsername();
 
       if (mode === "random") {
@@ -136,6 +145,73 @@ function ActiveGame({
       socket.off("game_over");
     };
   }, [duration, mode, room]);
+
+  // ── 2. Keyboard Input & Real-Time Movement Loop ─────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysRef.current.add(e.code);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current.delete(e.code);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    let movementInterval: NodeJS.Timeout;
+
+    if (gameStarted) {
+      movementInterval = setInterval(() => {
+        const socket = getSocket();
+        const activeRoomId = roomIdRef.current;
+        if (!socket || !activeRoomId || !roomState?.players) return;
+
+        const currentSocketId = socket.id || socketId;
+        const myPlayer = roomState.players.find((p: any) => p.id === currentSocketId);
+        if (!myPlayer || !myPlayer.alive) return;
+
+        const keys = keysRef.current;
+        const isForward = keys.has("KeyW") || keys.has("ArrowUp");
+        const isBackward = keys.has("KeyS") || keys.has("ArrowDown");
+        const isTurnLeft = keys.has("KeyA") || keys.has("ArrowLeft");
+        const isTurnRight = keys.has("KeyD") || keys.has("ArrowRight");
+
+        if (!isForward && !isBackward && !isTurnLeft && !isTurnRight) return;
+
+        let angle = myPlayer.angle || 0;
+        const turnSpeed = 0.15;
+        const moveSpeed = 1.2;
+
+        if (isTurnLeft) angle += turnSpeed;
+        if (isTurnRight) angle -= turnSpeed;
+
+        let x = myPlayer.x;
+        let z = myPlayer.z;
+
+        if (isForward) {
+          x += Math.sin(angle) * moveSpeed;
+          z += Math.cos(angle) * moveSpeed;
+        }
+        if (isBackward) {
+          x -= Math.sin(angle) * moveSpeed;
+          z -= Math.cos(angle) * moveSpeed;
+        }
+
+        // Clamp to map boundary
+        const HALF_MAP = 74;
+        x = Math.max(-HALF_MAP, Math.min(HALF_MAP, x));
+        z = Math.max(-HALF_MAP, Math.min(HALF_MAP, z));
+
+        socket.emit("move", { roomId: activeRoomId, x, z, angle });
+      }, 50); // 20 Hz movement emission
+    }
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      if (movementInterval) clearInterval(movementInterval);
+    };
+  }, [gameStarted, roomState, socketId]);
 
   // ── Waiting screen ─────────────────────────────────────────────────────────
   if (!gameStarted) {
@@ -168,7 +244,7 @@ function ActiveGame({
       ) : (
         <>
           <div className="w-screen h-screen">
-            <GameScene state={roomState} />
+            <GameScene state={roomState} mySocketId={socketId} />
           </div>
           <HUD
             players={roomState.players || []}
