@@ -33,7 +33,7 @@ function FlagCountdown({ onDone }: { onDone: () => void }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []); // Empty deps ensure timer runs uninterrupted by incoming room_state ticks
+  }, []);
 
   return (
     <div style={{
@@ -117,8 +117,11 @@ function ActiveGame({
 
       const currentSocketId = socket.id || socketId;
       const myServerPlayer = state.players?.find((p: any) => String(p.id) === String(currentSocketId));
-      if (myServerPlayer && !myPosRef.current) {
-        myPosRef.current = { x: myServerPlayer.x, z: myServerPlayer.z, angle: myServerPlayer.angle || 0 };
+      if (myServerPlayer) {
+        // Sync local position reference with server authoritative position
+        if (!myPosRef.current) {
+          myPosRef.current = { x: myServerPlayer.x, z: myServerPlayer.z, angle: myServerPlayer.angle || 0 };
+        }
       }
     });
 
@@ -158,8 +161,13 @@ function ActiveGame({
   // ── 2. Real-Time Movement Input Loop (20 Hz) ────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't register movement keys if user is typing inside an input element (e.g. Chat)
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
+        return;
+      }
       keysRef.current.add(e.code);
     };
+
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current.delete(e.code);
     };

@@ -6,8 +6,8 @@ export function createRoom(roomId) {
             players: {},
             flag: {
                 holderId: null,
-                x: 400,
-                z: 300,      // Fix: was y — gameLoop and GameScene both read z
+                x: 0,
+                z: 0,
             },
             bullets: [],
             obstacles: [],

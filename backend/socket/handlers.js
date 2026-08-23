@@ -1,6 +1,6 @@
 import { createRoom, getRoom } from "../game/rooms/roomManager.js"
 import { determineWinner, startGameLoop } from "../game/rooms/gameLoop.js"
-import { MAX_PLAYERS_PER_ROOM, MAX_MOVE_DISTANCE } from "../game/constant.js"
+import { MAX_PLAYERS_PER_ROOM } from "../game/constant.js"
 import { addToQueue, createMatch, removeFromQueue } from "../game/matchmaking/matchmaking.js"
 
 const PLAYER_COLORS = ["#ff2d78", "#00f5ff", "#ffd700", "#3dba4e"];
@@ -114,12 +114,6 @@ export default function registerHandlers(io, socket) {
         const player = room.players[socket.id]
         if (!player || !player.isAlive) return
 
-        const dx = x - player.x
-        const dz = z - player.z
-        const distance = Math.sqrt(dx * dx + dz * dz)
-
-        if (distance > MAX_MOVE_DISTANCE) return
-
         const clamped = clampPosition(x, z)
         player.x = clamped.x
         player.z = clamped.z
@@ -138,6 +132,7 @@ export default function registerHandlers(io, socket) {
 
         io.to(roomId).emit("receive_message", {
             username: player.username,
+            color: player.color,
             message: message.trim(),
             timestamp: Date.now()
         })

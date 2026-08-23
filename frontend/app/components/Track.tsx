@@ -13,10 +13,10 @@ function GroundPlane() {
       {/* Primary Grass Turf */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[HALF_MAP * 2, HALF_MAP * 2]} />
-        <meshLambertMaterial color="#2d5a1b" />
+        <meshStandardMaterial color="#2e7d32" roughness={0.8} />
       </mesh>
       {/* Grid Pattern */}
-      <gridHelper args={[HALF_MAP * 2, 30, '#4f8a38', '#386c25']} position={[0, 0.01, 0]} />
+      <gridHelper args={[HALF_MAP * 2, 30, '#81c784', '#4caf50']} position={[0, 0.01, 0]} />
     </group>
   )
 }
@@ -27,12 +27,12 @@ function BoundaryWall({ position, size }: { position: [number, number, number]; 
     <group position={position}>
       <mesh castShadow receiveShadow position={[0, size[1] / 2, 0]}>
         <boxGeometry args={size} />
-        <meshLambertMaterial color="#5a2e1d" />
+        <meshStandardMaterial color="#795548" roughness={0.7} />
       </mesh>
       {/* Cap */}
       <mesh position={[0, size[1] + 0.1, 0]} castShadow>
         <boxGeometry args={[size[0] + 0.2, 0.2, size[2] + 0.2]} />
-        <meshLambertMaterial color="#a09080" />
+        <meshStandardMaterial color="#d7ccc8" roughness={0.5} />
       </mesh>
     </group>
   )
@@ -43,7 +43,7 @@ function CornerPillar({ position }: { position: [number, number, number] }) {
   return (
     <mesh position={[position[0], (WALL_H + 0.5) / 2, position[2]]} castShadow receiveShadow>
       <boxGeometry args={[WALL_T * 1.5, WALL_H + 0.5, WALL_T * 1.5]} />
-      <meshLambertMaterial color="#7a3020" />
+      <meshStandardMaterial color="#5d4037" roughness={0.6} />
     </mesh>
   )
 }
@@ -53,7 +53,7 @@ function River() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 20]}>
       <planeGeometry args={[130, 8]} />
-      <meshLambertMaterial color="#1e4fa3" transparent opacity={0.8} />
+      <meshStandardMaterial color="#0288d1" roughness={0.2} transparent opacity={0.85} />
     </mesh>
   )
 }
@@ -80,11 +80,11 @@ function SceneryTrees() {
         <group key={i} position={[tr.x, 0, tr.z]} scale={tr.scale}>
           <mesh position={[0, 0.8, 0]} castShadow>
             <cylinderGeometry args={[0.2, 0.3, 1.6, 8]} />
-            <meshLambertMaterial color="#6B4226" />
+            <meshStandardMaterial color="#5d4037" />
           </mesh>
           <mesh position={[0, 2.1, 0]} castShadow>
             <sphereGeometry args={[1.2, 12, 12]} />
-            <meshLambertMaterial color="#2e7d32" />
+            <meshStandardMaterial color="#1b5e20" />
           </mesh>
         </group>
       ))}
@@ -109,7 +109,7 @@ function Rocks() {
       {rocks.map((rock, i) => (
         <mesh key={i} position={[rock.x, 0.5, rock.z]} scale={rock.scale} castShadow>
           <dodecahedronGeometry args={[0.8]} />
-          <meshLambertMaterial color="#7a7a7a" />
+          <meshStandardMaterial color="#616161" roughness={0.9} />
         </mesh>
       ))}
     </group>
@@ -121,7 +121,7 @@ function FlagSpawnMarker() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
       <ringGeometry args={[2.0, 2.5, 32]} />
-      <meshLambertMaterial color="#ffd700" transparent opacity={0.6} />
+      <meshStandardMaterial color="#ffd700" roughness={0.3} transparent opacity={0.8} />
     </mesh>
   )
 }
