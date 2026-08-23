@@ -19,7 +19,6 @@ function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: numb
     }
   })
 
-  // Don't render flag separately when carried — PlayerMesh shows it on the carrier's back
   if (carrierId !== null) return null
 
   return (
@@ -27,17 +26,17 @@ function FlagObject({ x, z, carrierId }: { x: number; z: number; carrierId: numb
       {/* Pole */}
       <mesh ref={poleRef} position={[0, 0.8, 0]}>
         <cylinderGeometry args={[0.06, 0.06, 1.6, 6]} />
-        <meshLambertMaterial color="#aaaaaa" />
+        <meshStandardMaterial color="#aaaaaa" />
       </mesh>
       {/* Flag cloth */}
       <mesh position={[0.3, 1.55, 0]}>
         <boxGeometry args={[0.6, 0.35, 0.05]} />
-        <meshLambertMaterial color="#dc2626" />
+        <meshStandardMaterial color="#dc2626" />
       </mesh>
       {/* Glow ring on ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <ringGeometry args={[0.5, 0.75, 24]} />
-        <meshLambertMaterial color="#ffd700" transparent opacity={0.6} />
+        <meshStandardMaterial color="#ffd700" transparent opacity={0.8} />
       </mesh>
     </group>
   )
@@ -48,16 +47,17 @@ function SkyAndClouds() {
   const cloudGroup = useRef<THREE.Group>(null)
 
   const skyTexture = useMemo(() => {
+    if (typeof window === 'undefined') return null
     const canvas = document.createElement('canvas')
-    canvas.width = 1024
-    canvas.height = 1024
+    canvas.width = 512
+    canvas.height = 512
     const ctx = canvas.getContext('2d')!
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1024)
+    const gradient = ctx.createLinearGradient(0, 0, 0, 512)
     gradient.addColorStop(0,   '#0f4fff')
     gradient.addColorStop(0.5, '#1e90ff')
     gradient.addColorStop(1,   '#87ceeb')
     ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 1024, 1024)
+    ctx.fillRect(0, 0, 512, 512)
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
     return texture
@@ -84,27 +84,24 @@ function SkyAndClouds() {
 
   return (
     <>
-      {/* Sky dome */}
-      <mesh>
-        <sphereGeometry args={[300, 64, 64]} />
-        <meshBasicMaterial map={skyTexture} side={THREE.BackSide} />
-      </mesh>
+      {skyTexture && (
+        <mesh>
+          <sphereGeometry args={[300, 32, 32]} />
+          <meshBasicMaterial map={skyTexture} side={THREE.BackSide} />
+        </mesh>
+      )}
 
       {/* Drifting clouds */}
       <group ref={cloudGroup}>
         {clouds.map((c, i) => (
           <group key={i} position={[c.x, c.y, c.z]} scale={c.scale}>
             <mesh>
-              <sphereGeometry args={[1.6, 16, 16]} />
-              <meshLambertMaterial color="#ffffff" transparent opacity={0.85} />
+              <sphereGeometry args={[1.6, 12, 12]} />
+              <meshStandardMaterial color="#ffffff" transparent opacity={0.85} />
             </mesh>
             <mesh position={[1.4, 0.3, 0]}>
-              <sphereGeometry args={[1.2, 16, 16]} />
-              <meshLambertMaterial color="#f0f6ff" transparent opacity={0.8} />
-            </mesh>
-            <mesh position={[-1.3, 0.2, 0]}>
-              <sphereGeometry args={[1.1, 16, 16]} />
-              <meshLambertMaterial color="#e6f2ff" transparent opacity={0.8} />
+              <sphereGeometry args={[1.2, 12, 12]} />
+              <meshStandardMaterial color="#f0f6ff" transparent opacity={0.8} />
             </mesh>
           </group>
         ))}
@@ -119,7 +116,7 @@ type Props = { state: GameState; mySocketId?: string }
 export function GameScene({ state, mySocketId }: Props) {
   return (
     <Canvas
-      shadows
+      shadows={{ type: THREE.PCFShadowMap }}
       style={{ width: '100%', height: '100%' }}
       camera={{ fov: 60, near: 0.1, far: 400 }}
       gl={{ antialias: true }}
