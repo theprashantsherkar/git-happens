@@ -5,8 +5,7 @@ import cors from 'cors';
 import userRoutes from "./routes/userRoutes.js";
 import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 
-dotenv.config({ path: './.env' });
-dotenv.config({ path: './database/.env' });
+dotenv.config();
 
 const app = express();
 

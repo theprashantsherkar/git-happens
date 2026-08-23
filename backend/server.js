@@ -4,20 +4,31 @@ import { Server } from "socket.io";
 import http from "http";
 import registerSocketHandlers from "./socket/index.js";
 
-connectDB();
+const PORT = process.env.PORT || 5000;
 
-const server = http.createServer(app);
+async function startServer() {
+    try {
+        await connectDB();
 
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  },
-});
+        const server = http.createServer(app);
 
-registerSocketHandlers(io);
+        const io = new Server(server, {
+            cors: {
+                origin: "*",
+                credentials: true,
+                methods: ["GET", "POST", "PUT", "DELETE"],
+            },
+        });
 
-server.listen(5000, () => {
-  console.log("Server up and running at port 5000");
-});
+        registerSocketHandlers(io);
+
+        server.listen(PORT, () => {
+            console.log(`Server up and running at port ${PORT}`);
+        });
+    } catch (error) {
+        console.error("Failed to start server due to database connection error.");
+        process.exit(1);
+    }
+}
+
+startServer();
