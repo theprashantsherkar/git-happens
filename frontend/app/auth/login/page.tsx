@@ -676,7 +676,7 @@
 //       <main className="page">
 //         {/* Logo */}
 //         <div className="logo-wrapper">
-//           <span className="logo-title">FLAGZiLLA</span>
+//           <span className="logo-title">FLAGZILLA</span>
 //           <div className="logo-subtitle">⚔ a fun multiplayer game ⚔</div>
 //         </div>
 
@@ -758,11 +758,12 @@
 
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { BACKEND_URI } from "@/app/page";
 import axios from "axios";
 import Link from "next/link";
-// import { useMusic } from "./hooks/useAudio";
+import { getStoredToken, setStoredToken } from "@/app/lib/auth";
 
 interface LoginForm {
   email: string;
@@ -775,11 +776,18 @@ interface ApiResponse {
 }
 
 export default function LoginPage() {
-  // useMusic("nav");
+  const router = useRouter();
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [shake, setShake] = useState<boolean>(false);
+
+  useEffect(() => {
+    const token = getStoredToken();
+    if (token) {
+      router.push("/home");
+    }
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -787,45 +795,40 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  try {
-    const res = await axios.post(`${BACKEND_URI}app/api/user-routes/login`, {
-      email: form.email,
-      password:form.password
-    }, {
-      headers: {
-        "Content-Type":"application/json"
-      },
-      withCredentials:true
-    })
+    try {
+      const res = await axios.post(`${BACKEND_URI}app/api/user-routes/login`, {
+        email: form.email,
+        password: form.password
+      }, {
+        headers: {
+          "Content-Type": "application/json"
+        },
+        withCredentials: true
+      });
 
-    
+      if (!res.data.success) {
+        setError(res.data.message || "Login failed. Try again!");
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
+        return;
+      }
 
-    if (!res.data.success) {
-      setError(res.data.message || "Login failed. Try again!");
+      if (res.data.token) {
+        setStoredToken(res.data.token);
+        window.location.href = "/home";
+      }
+    } catch (err: any) {
+      setError("Server error. Please try again.");
       setShake(true);
       setTimeout(() => setShake(false), 600);
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    if (res.data.token) {
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("token", res.data.token);
-        localStorage.setItem("token", res.data.token);
-      }
-      window.location.href = "/home";
-    }
-  } catch (err:any) {
-    setError("Server error. Please try again.");
-    setShake(true);
-    setTimeout(() => setShake(false), 600);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <>
@@ -1559,7 +1562,7 @@ export default function LoginPage() {
       <main className="page">
         {/* Logo */}
         <div className="logo-wrapper">
-          <span className="logo-title">FLAGZiLLA</span>
+          <span className="logo-title">FLAGZILLA</span>
           <div className="logo-subtitle">⚔ GRAB.FIGHT.REPEAT. ⚔</div>
         </div>
 

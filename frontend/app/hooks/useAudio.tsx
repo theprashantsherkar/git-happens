@@ -7,24 +7,25 @@ type Track = "nav" | "tension" | "battle" | "off";
 interface AudioContextValue {
   ready: boolean;
   currentTrack: Track;
+  isMuted: boolean;
   playTrack: (track: Track) => void;
   playClick: () => void;
   unlock: () => void;
+  toggleMute: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 const AudioCtx = createContext<AudioContextValue>({
   ready: false,
   currentTrack: "off",
+  isMuted: false,
   playTrack: () => {},
   playClick: () => {},
   unlock: () => {},
+  toggleMute: () => {},
 });
 
 // ─── Music definitions ────────────────────────────────────────────────────────
-// All music is procedurally generated — no files needed.
-
-// Note frequencies (Hz)
 const NOTE: Record<string, number> = {
   C3: 130.81, D3: 146.83, Eb3: 155.56, F3: 174.61, G3: 196.00, Ab3: 207.65, Bb3: 233.08,
   C4: 261.63, D4: 293.66, Eb4: 311.13, F4: 349.23, G4: 392.00, Ab4: 415.30, Bb4: 466.16,
@@ -35,7 +36,6 @@ const NOTE: Record<string, number> = {
 function buildNavMusic(ac: AudioContext, masterGain: GainNode) {
   const stopFns: (() => void)[] = [];
 
-  // Ambient low pad
   const pad = ac.createOscillator();
   const padGain = ac.createGain();
   const padFilter = ac.createBiquadFilter();
@@ -48,7 +48,6 @@ function buildNavMusic(ac: AudioContext, masterGain: GainNode) {
   pad.start();
   stopFns.push(() => { try { pad.stop(); } catch {} });
 
-  // Second pad for warmth
   const pad2 = ac.createOscillator();
   const pad2Gain = ac.createGain();
   pad2.type = "sine";
@@ -58,9 +57,8 @@ function buildNavMusic(ac: AudioContext, masterGain: GainNode) {
   pad2.start();
   stopFns.push(() => { try { pad2.stop(); } catch {} });
 
-  // Slow arpeggio melody
   const arpNotes = [NOTE.C4, NOTE.Eb4, NOTE.G4, NOTE.Bb4, NOTE.C5, NOTE.Bb4, NOTE.G4, NOTE.Eb4];
-  const arpInterval = 600; // ms per note
+  const arpInterval = 600;
   let arpIndex = 0;
   let stopped = false;
 
@@ -86,7 +84,6 @@ function buildNavMusic(ac: AudioContext, masterGain: GainNode) {
   playArpNote();
   stopFns.push(() => { stopped = true; clearInterval(arpTimer); });
 
-  // Slow bass pulse on beat
   const bassNotes = [NOTE.C3, NOTE.C3, NOTE.G3, NOTE.Bb3];
   let bassIndex = 0;
   const bassInterval = 1200;
@@ -113,12 +110,11 @@ function buildNavMusic(ac: AudioContext, masterGain: GainNode) {
   return () => stopFns.forEach(fn => fn());
 }
 
-// ── TENSION theme: building countdown feel ────────────────────────────────────
+// ── TENSION theme ─────────────────────────────────────────────────────────────
 function buildTensionMusic(ac: AudioContext, masterGain: GainNode) {
   const stopFns: (() => void)[] = [];
   let stopped = false;
 
-  // Drone
   const drone = ac.createOscillator();
   const droneGain = ac.createGain();
   drone.type = "sawtooth";
@@ -131,7 +127,6 @@ function buildTensionMusic(ac: AudioContext, masterGain: GainNode) {
   drone.start();
   stopFns.push(() => { try { drone.stop(); } catch {} });
 
-  // Rising pulse hits
   const pulseNotes = [NOTE.C4, NOTE.Eb4, NOTE.C4, NOTE.G4, NOTE.C4, NOTE.Eb4, NOTE.Ab4, NOTE.C5];
   let pulseIdx = 0;
   const pulseInterval = 400;
@@ -155,7 +150,6 @@ function buildTensionMusic(ac: AudioContext, masterGain: GainNode) {
   playPulse();
   stopFns.push(() => { stopped = true; clearInterval(pulseTimer); });
 
-  // Tension stabs
   const stabTimer = setInterval(() => {
     if (stopped) return;
     const osc = ac.createOscillator();
@@ -173,14 +167,13 @@ function buildTensionMusic(ac: AudioContext, masterGain: GainNode) {
   return () => stopFns.forEach(fn => fn());
 }
 
-// ── BATTLE theme: fast driving, energetic ─────────────────────────────────────
+// ── BATTLE theme ──────────────────────────────────────────────────────────────
 function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
   const stopFns: (() => void)[] = [];
   let stopped = false;
   const BPM = 140;
-  const beat = (60 / BPM) * 1000; // ms per beat
+  const beat = (60 / BPM) * 1000;
 
-  // Kick drum
   function playKick() {
     if (stopped) return;
     const osc = ac.createOscillator();
@@ -195,7 +188,6 @@ function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
     osc.stop(ac.currentTime + 0.35);
   }
 
-  // Snare drum
   function playSnare() {
     if (stopped) return;
     const noise = ac.createOscillator();
@@ -212,7 +204,6 @@ function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
     noise.stop(ac.currentTime + 0.15);
   }
 
-  // Hi-hat
   function playHihat(open = false) {
     if (stopped) return;
     const osc = ac.createOscillator();
@@ -229,7 +220,6 @@ function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
     osc.stop(ac.currentTime + (open ? 0.25 : 0.08));
   }
 
-  // Drum pattern: kick on 1&3, snare on 2&4, hihats every 8th
   let beatCount = 0;
   const drumTimer = setInterval(() => {
     if (stopped) return;
@@ -237,13 +227,11 @@ function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
     if (b === 0 || b === 2) playKick();
     if (b === 1 || b === 3) playSnare();
     playHihat(b === 3);
-    // extra hihat on offbeat
     setTimeout(() => { if (!stopped) playHihat(); }, beat / 2);
     beatCount++;
   }, beat);
   stopFns.push(() => { stopped = true; clearInterval(drumTimer); });
 
-  // Bass line - C minor pentatonic riff
   const bassLine = [
     NOTE.C3, NOTE.C3, NOTE.Eb3, NOTE.C3,
     NOTE.G3, NOTE.G3, NOTE.Bb3, NOTE.Ab3,
@@ -268,7 +256,6 @@ function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
   }, beat);
   stopFns.push(() => clearInterval(bassTimer));
 
-  // Lead melody riff
   const lead = [
     NOTE.C5, NOTE.Eb5, NOTE.G5, NOTE.F5, NOTE.Eb5, NOTE.D5, NOTE.C5, NOTE.Bb4,
     NOTE.C5, NOTE.G4, NOTE.Bb4, NOTE.Ab4, NOTE.G4, NOTE.F4, NOTE.Eb4, NOTE.C4,
@@ -290,7 +277,7 @@ function buildBattleMusic(ac: AudioContext, masterGain: GainNode) {
     osc.start(ac.currentTime);
     osc.stop(ac.currentTime + (beat / 1000) * 0.75);
     leadIdx++;
-  }, beat / 2); // lead plays at double speed (8th notes)
+  }, beat / 2);
   stopFns.push(() => clearInterval(leadTimer));
 
   return () => stopFns.forEach(fn => fn());
@@ -316,8 +303,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const masterRef = useRef<GainNode | null>(null);
   const stopCurrentRef = useRef<(() => void) | null>(null);
   const fadeGainRef = useRef<GainNode | null>(null);
+
   const [ready, setReady] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<Track>("off");
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("flagzilla_muted") === "true";
+    }
+    return false;
+  });
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("flagzilla_muted", String(next));
+      }
+      return next;
+    });
+  }, []);
 
   const unlock = useCallback(() => {
     if (acRef.current) return;
@@ -325,19 +329,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const master = ac.createGain();
     const fadeGain = ac.createGain();
     master.gain.value = 0.7;
-    fadeGain.gain.value = 1;
+    fadeGain.gain.value = isMuted ? 0 : 1;
     master.connect(fadeGain);
     fadeGain.connect(ac.destination);
     acRef.current = ac;
     masterRef.current = master;
     fadeGainRef.current = fadeGain;
     setReady(true);
-  }, []);
+  }, [isMuted]);
+
+  useEffect(() => {
+    if (fadeGainRef.current && acRef.current) {
+      fadeGainRef.current.gain.cancelScheduledValues(acRef.current.currentTime);
+      fadeGainRef.current.gain.setValueAtTime(isMuted ? 0 : 1, acRef.current.currentTime);
+    }
+  }, [isMuted]);
 
   const playClick = useCallback(() => {
-    if (!acRef.current) return;
+    if (!acRef.current || isMuted) return;
     playClickSound(acRef.current);
-  }, []);
+  }, [isMuted]);
 
   const playTrack = useCallback((track: Track) => {
     if (!acRef.current || !masterRef.current || !fadeGainRef.current) return;
@@ -346,13 +357,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const ac = acRef.current;
     const fadeGain = fadeGainRef.current;
 
-    // Fade out current
     fadeGain.gain.cancelScheduledValues(ac.currentTime);
     fadeGain.gain.setValueAtTime(fadeGain.gain.value, ac.currentTime);
-    fadeGain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.5);
+    fadeGain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.3);
 
     setTimeout(() => {
-      // Stop previous
       if (stopCurrentRef.current) {
         stopCurrentRef.current();
         stopCurrentRef.current = null;
@@ -363,7 +372,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Start new track
       const master = masterRef.current!;
       let stop: () => void;
       if (track === "nav")     stop = buildNavMusic(ac, master);
@@ -373,14 +381,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       stopCurrentRef.current = stop;
       setCurrentTrack(track);
 
-      // Fade in
       fadeGain.gain.cancelScheduledValues(ac.currentTime);
       fadeGain.gain.setValueAtTime(0, ac.currentTime);
-      fadeGain.gain.linearRampToValueAtTime(1, ac.currentTime + 0.5);
-    }, 520);
-  }, [currentTrack]);
+      fadeGain.gain.linearRampToValueAtTime(isMuted ? 0 : 1, ac.currentTime + 0.3);
+    }, 320);
+  }, [currentTrack, isMuted]);
 
-  // Global click sound on mousedown
   useEffect(() => {
     const handler = () => playClick();
     window.addEventListener("mousedown", handler);
@@ -388,17 +394,55 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [playClick]);
 
   return (
-    <AudioCtx.Provider value={{ ready, currentTrack, playTrack, playClick, unlock }}>
+    <AudioCtx.Provider value={{ ready, currentTrack, isMuted, playTrack, playClick, unlock, toggleMute }}>
       {children}
     </AudioCtx.Provider>
   );
 }
 
-// ─── Hook: tell audio system which track this page needs ──────────────────────
+// ─── Mute Button Component ─────────────────────────────────────────────────────
+export function MuteButton() {
+  const { isMuted, toggleMute } = useAudio();
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleMute();
+      }}
+      aria-label={isMuted ? "Unmute audio" : "Mute audio"}
+      title={isMuted ? "Unmute Audio" : "Mute Audio"}
+      style={{
+        position: "fixed",
+        top: 14,
+        right: 18,
+        zIndex: 9999,
+        fontSize: 22,
+        background: "transparent",
+        border: "none",
+        outline: "none",
+        boxShadow: "none",
+        filter: isMuted
+          ? "drop-shadow(0 0 8px rgba(255, 45, 120, 0.8))"
+          : "drop-shadow(0 0 8px rgba(0, 245, 255, 0.8))",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        transition: "transform 0.15s ease, filter 0.15s ease",
+        userSelect: "none",
+        padding: 4,
+      }}
+    >
+      <span>{isMuted ? "🔇" : "🔊"}</span>
+    </button>
+  );
+}
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
 export function useMusic(track: Track) {
   const { playTrack, unlock, ready } = useContext(AudioCtx);
 
-  // Unlock on first interaction with the page
   useEffect(() => {
     const handler = () => {
       unlock();
@@ -407,7 +451,6 @@ export function useMusic(track: Track) {
     return () => window.removeEventListener("click", handler);
   }, [unlock]);
 
-  // Switch track once audio is ready
   useEffect(() => {
     if (ready) playTrack(track);
   }, [ready, track, playTrack]);

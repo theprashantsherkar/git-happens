@@ -8,6 +8,18 @@ import { BACKEND_URI } from "../page";
 
 const SESSION_OPTIONS = [2, 5, 10, 20] as const;
 
+const WORDMARK_COLORS = [
+  "#00f5ff", // F - Cyan
+  "#00f5ff", // L - Cyan
+  "#3dba4e", // A - Green
+  "#3dba4e", // G - Green
+  "#ffd700", // Z - Yellow
+  "#ffd700", // I - Yellow
+  "#ff6b1a", // L - Orange
+  "#ff6b1a", // L - Orange
+  "#ff2d78", // A - Pink
+];
+
 export default function PlayPage() {
   useMusic("nav");
   const router = useRouter();
@@ -37,21 +49,24 @@ export default function PlayPage() {
   };
 
   const logoutHandler = async() => {
-    const { data } = await axios.get(`${BACKEND_URI}app/api/user-routes/logout`, {
-      headers: {
-        "Content-Type":"application/json",
-      },
-      withCredentials:true
-    })
-
-    if (data.success) {
-      if (typeof window !== "undefined") {
+    try {
+      const { data } = await axios.get(`${BACKEND_URI}app/api/user-routes/logout`, {
+        headers: {
+          "Content-Type":"application/json",
+        },
+        withCredentials:true
+      });
+      if (data.success && typeof window !== "undefined") {
         sessionStorage.removeItem("token");
         localStorage.removeItem("token");
       }
-      router.push("/");
+    } catch {}
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("token");
+      localStorage.removeItem("token");
     }
-  }
+    router.push("/");
+  };
 
   return (
     <>
@@ -83,11 +98,83 @@ export default function PlayPage() {
         .vignette { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.7) 100%); }
         .border-frame { position: fixed; inset: 8px; z-index: 3; pointer-events: none; border: 3px solid; border-image: linear-gradient(135deg, #00f5ff, #ff6b1a, #ff2d78, #00f5ff) 1; }
         .page { position: relative; z-index: 10; min-height: 100vh; display: flex; flex-direction: column; }
-        .nav { display: flex; justify-content: space-between; align-items: center; padding: 14px 32px; background: rgba(0,0,0,0.75); border-bottom: 1px solid rgba(0,245,255,0.15); backdrop-filter: blur(10px); }
-        .nav-logo { font-family: 'Press Start 2P', monospace; font-size: 18px; background: linear-gradient(135deg, #00f5ff, #ff6b1a, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(2px 2px 0 #000); text-decoration: none; }
-        .nav-link { font-family: 'VT323', monospace; font-size: 18px; color: #7799bb; text-decoration: none; padding: 5px 14px; border: 1px solid rgba(255,255,255,0.1); transition: color 0.15s, border-color 0.15s; }
-        .nav-link:hover { color: #00f5ff; border-color: #00f5ff; }
-        .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; gap: 24px; }
+        
+        /* ─── Stacked Navbar ───────────────────────────────────────────────── */
+        .nav {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 16px 32px;
+          background: rgba(0,0,0,0.85);
+          border-bottom: 2px solid rgba(0,245,255,0.2);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+        }
+
+        .nav-logo {
+          font-family: 'Press Start 2P', monospace;
+          font-size: 22px;
+          letter-spacing: 4px;
+          text-decoration: none;
+          filter: drop-shadow(3px 3px 0 #000);
+          text-transform: uppercase;
+          display: inline-flex;
+        }
+
+        .nav-logo span {
+          display: inline-block;
+          text-shadow: 0 0 8px currentColor;
+        }
+
+        .nav-buttons {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+        }
+
+        .nav-link {
+          font-family: 'VT323', monospace;
+          font-size: 18px;
+          color: #00f5ff;
+          text-decoration: none;
+          padding: 5px 16px;
+          border: 1px solid #00f5ff;
+          background: rgba(0, 245, 255, 0.06);
+          box-shadow: 0 0 8px rgba(0, 245, 255, 0.15);
+          transition: all 0.15s ease;
+          cursor: pointer;
+          display: inline-block;
+        }
+
+        .nav-link:hover {
+          background: rgba(0, 245, 255, 0.2);
+          box-shadow: 0 0 16px rgba(0, 245, 255, 0.4);
+          color: #fff;
+        }
+
+        .nav-link-logout {
+          font-family: 'VT323', monospace;
+          font-size: 18px;
+          color: #ff2d78;
+          text-decoration: none;
+          padding: 5px 16px;
+          border: 1px solid #ff2d78;
+          background: rgba(255, 45, 120, 0.06);
+          box-shadow: 0 0 8px rgba(255, 45, 120, 0.15);
+          transition: all 0.15s ease;
+          cursor: pointer;
+        }
+
+        .nav-link-logout:hover {
+          background: rgba(255, 45, 120, 0.2);
+          box-shadow: 0 0 16px rgba(255, 45, 120, 0.4);
+          color: #fff;
+        }
+
+        .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px 24px; gap: 20px; }
         .page-title { font-family: 'Press Start 2P', monospace; font-size: 13px; color: #00f5ff; text-shadow: 0 0 16px #00f5ff; letter-spacing: 2px; text-align: center; }
         .panel { background: rgba(10,5,30,0.88); border: 3px solid #00f5ff; box-shadow: 0 0 0 2px #000, 0 0 28px rgba(0,245,255,0.25), 7px 7px 0 rgba(0,0,0,0.8); padding: 30px 34px; width: 100%; max-width: 560px; position: relative; animation: panelIn 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
         @keyframes panelIn { from { transform: scale(0.92) translateY(16px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
@@ -157,11 +244,18 @@ export default function PlayPage() {
       <div className="scanlines"/><div className="vignette"/><div className="border-frame"/>
 
       <div className="page">
+        {/* Stacked Two-Row Navbar */}
         <nav className="nav">
-          <Link href="/" className="nav-logo">FLAGZiLLA</Link>
-          <div style={{ display:"flex", gap:10 }}>
+          <Link href="/home" className="nav-logo">
+            {"FLAGZILLA".split("").map((letter, i) => (
+              <span key={i} style={{ color: WORDMARK_COLORS[i % WORDMARK_COLORS.length] }}>
+                {letter}
+              </span>
+            ))}
+          </Link>
+          <div className="nav-buttons">
             <Link href="/home" className="nav-link">HOME</Link>
-            <Link href="/" className="nav-link" onClick={logoutHandler}>LOG OUT</Link>
+            <button className="nav-link-logout" onClick={logoutHandler}>LOG OUT</button>
           </div>
         </nav>
 

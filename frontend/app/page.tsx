@@ -1,11 +1,23 @@
 "use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMusic } from "./hooks/useAudio";
+import { getStoredToken } from "./lib/auth";
 
 export const BACKEND_URI = "http://localhost:5000/";
 
 export default function LandingPage() {
   useMusic("nav");
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = getStoredToken();
+    if (token) {
+      router.push("/home");
+    }
+  }, [router]);
+
   return (
     <>
       <style>{`
@@ -695,7 +707,7 @@ export default function LandingPage() {
       <main className="page">
 
         {/* Title */}
-        <span className="logo-title">FLAGZiLLA</span>
+        <span className="logo-title">FLAGZILLA</span>
 
         {/* Tagline */}
         <div className="tagline-box">

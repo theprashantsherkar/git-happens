@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AudioProvider } from "./hooks/useAudio";
+import { AudioProvider, MuteButton } from "./hooks/useAudio";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,6 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <AudioProvider>
+          <MuteButton />
           {children}
         </AudioProvider>
       </body>

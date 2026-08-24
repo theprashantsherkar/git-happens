@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from 'axios';
 import { BACKEND_URI } from "@/app/page";
-// import { useMusic } from "./useAudio";
+import { getStoredToken, setStoredToken } from "@/app/lib/auth";
 
 interface RegisterForm {
   username: string;
@@ -29,8 +30,8 @@ function getPasswordStrength(password: string): PasswordStrength {
 }
 
 export default function RegisterPage() {
-    // useMusic("nav");
-    const [form, setForm] = useState<RegisterForm>({
+  const router = useRouter();
+  const [form, setForm] = useState<RegisterForm>({
     username: "",
     email: "",
     password: "",
@@ -40,6 +41,13 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [shake, setShake] = useState<boolean>(false);
+
+  useEffect(() => {
+    const token = getStoredToken();
+    if (token) {
+      router.push("/home");
+    }
+  }, [router]);
 
   const passwordStrength = getPasswordStrength(form.password);
 
@@ -87,10 +95,7 @@ export default function RegisterPage() {
         return;
       }
       if (data.token) {
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("token", data.token);
-          localStorage.setItem("token", data.token);
-        }
+        setStoredToken(data.token);
         setSuccess(true);
         setTimeout(() => { window.location.href = "/home"; }, 2000);
       }
@@ -915,7 +920,7 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div className="logo-wrapper">
-          <span className="logo-title">FLAGZiLLA</span>
+          <span className="logo-title">FLAGZILLA</span>
           <div className="logo-subtitle">⚔ GRAB.FIGHT.REPEAT. ⚔</div>
         </div>
 

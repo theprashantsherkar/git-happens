@@ -27,6 +27,7 @@ export default function registerHandlers(io, socket) {
 
         room.players[socket.id] = {
             id: socket.id,
+            userId: socket.userId,
             username: username || socket.username || `Player ${colorIndex + 1}`,
             color: PLAYER_COLORS[colorIndex],
             x: spawn.x,
@@ -83,6 +84,7 @@ export default function registerHandlers(io, socket) {
 
             room.players[p.socketId] = {
                 id: p.socketId,
+                userId: p.userId,
                 username: p.username,
                 color: PLAYER_COLORS[index],
                 x: spawn.x,
